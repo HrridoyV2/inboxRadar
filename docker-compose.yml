@@ -1,0 +1,37 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: inboxradar-backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    volumes:
+      # Mount mock dataset so changes to it on host reflect inside the container
+      - ./mock_emails.json:/app/mock_emails.json
+    restart: always
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: inboxradar-frontend
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    environment:
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000/api}
+      - NEXT_PUBLIC_EMAIL_USER=${EMAIL_USER:-alex142nomad@gmail.com}
+      - NEXT_PUBLIC_MOCK_MODE=${MOCK_MODE:-true}
+    depends_on:
+      - backend
+    restart: always
