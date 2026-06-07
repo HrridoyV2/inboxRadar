@@ -51,7 +51,16 @@ export default function Home() {
   const wsRef = useRef(null);
 
   // Configuration URLs
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+  let rawApiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+  try {
+    const urlObj = new URL(rawApiUrl);
+    if (urlObj.pathname === '/' || urlObj.pathname === '') {
+      rawApiUrl = `${urlObj.origin}/api`;
+    }
+  } catch (e) {
+    // Fallback if not a parseable URL
+  }
+  const API_URL = rawApiUrl;
   const WS_URL = API_URL.replace('/api', '').replace('http://', 'ws://').replace('https://', 'wss://') + '/ws';
 
   // Helper to add log entries
