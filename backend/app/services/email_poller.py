@@ -8,6 +8,8 @@ import datetime
 import time
 import asyncio
 import logging
+import hashlib
+import re
 from typing import List, Dict, Any, Optional
 
 from app.core.config import settings
@@ -79,29 +81,58 @@ def decode_mime_words(s: str) -> str:
         return s
 
 
+def get_stable_hash(s: str) -> str:
+    """Generates a stable MD5 hash for a string to be used as a fallback ID."""
+    return hashlib.md5(s.encode("utf-8")).hexdigest()
+
+
 def parse_email_body(msg: email.message.Message) -> str:
-    """Extracts text body from a MIME email message."""
+    """Extracts text body from a MIME email message, falling back to HTML if needed."""
     body = ""
+    html_body = ""
+    
     if msg.is_multipart():
         for part in msg.walk():
             content_type = part.get_content_type()
             content_disposition = str(part.get("Content-Disposition"))
-            if content_type == "text/plain" and "attachment" not in content_disposition:
+            if "attachment" in content_disposition:
+                continue
+                
+            if content_type == "text/plain":
                 try:
                     payload = part.get_payload(decode=True)
                     charset = part.get_content_charset() or "utf-8"
                     body += payload.decode(charset, errors="replace")
                 except Exception as e:
-                    logger.error(f"Error decoding body part: {e}")
+                    logger.error(f"Error decoding text body part: {e}")
+            elif content_type == "text/html":
+                try:
+                    payload = part.get_payload(decode=True)
+                    charset = part.get_content_charset() or "utf-8"
+                    html_body += payload.decode(charset, errors="replace")
+                except Exception as e:
+                    logger.error(f"Error decoding html body part: {e}")
     else:
         try:
             payload = msg.get_payload(decode=True)
             charset = msg.get_content_charset() or "utf-8"
-            body = payload.decode(charset, errors="replace")
+            content_type = msg.get_content_type()
+            
+            decoded = payload.decode(charset, errors="replace")
+            if content_type == "text/html":
+                html_body = decoded
+            else:
+                body = decoded
         except Exception as e:
             logger.error(f"Error decoding single part body: {e}")
     
-    return body.strip()
+    # Prefer plain text, but fall back to HTML if plain text is empty
+    result = body.strip()
+    if not result and html_body:
+        # Basic HTML tag stripping for better classification
+        result = re.sub(r'<[^>]+>', '', html_body).strip()
+        
+    return result
 
 
 async def process_and_save_email(
@@ -161,7 +192,8 @@ async def process_and_save_email(
 
 def check_duplicate_sync(message_id: str) -> bool:
     """Thread-safe check for email duplicates using async Prisma on the main event loop."""
-    if main_event_loop is None:
+    if main_event_loop is None or not prisma.is_connected():
+        logger.warning("Prisma client not connected or event loop missing in check_duplicate_sync")
         return False
     coro = prisma.email.find_unique(where={"message_id": message_id})
     future = asyncio.run_coroutine_threadsafe(coro, main_event_loop)
@@ -180,7 +212,8 @@ def process_and_save_email_sync(
     received_at: datetime.datetime
 ) -> Optional[Any]:
     """Thread-safe process and save using async Prisma on the main event loop."""
-    if main_event_loop is None:
+    if main_event_loop is None or not prisma.is_connected():
+        logger.warning("Prisma client not connected or event loop missing in process_and_save_email_sync")
         return None
     coro = process_and_save_email(
         message_id=message_id,
@@ -234,7 +267,9 @@ def poll_imap_inbox() -> int:
                     
                     msg_id = msg.get("Message-ID")
                     if not msg_id:
-                        msg_id = f"fallback-{hash(msg.get('From', '') + msg.get('Subject', '') + msg.get('Date', ''))}"
+                        # Use a stable hash of sender, subject and date for fallback ID
+                        raw_id_seed = f"{msg.get('From', '')}{msg.get('Subject', '')}{msg.get('Date', '')}"
+                        msg_id = f"fallback-{get_stable_hash(raw_id_seed)}"
                     
                     msg_id = msg_id.strip("<>")
 
@@ -285,9 +320,9 @@ async def poll_mock_emails() -> int:
     processed_count = 0
 
     try:
-        # 1. Process custom user-submitted emails from SMTP Test form
+        # 1. Process ALL custom user-submitted emails from SMTP Test form
         import app.services.email_sender as email_sender
-        if email_sender.pending_mock_emails:
+        while email_sender.pending_mock_emails:
             import random
             custom_email = email_sender.pending_mock_emails.pop(0)
             logger.info(f"Processing custom mock email from queue: Subject: '{custom_email['subject']}'")
@@ -305,21 +340,26 @@ async def poll_mock_emails() -> int:
             )
             if result:
                 processed_count += 1
-            return processed_count
 
         # 2. Fall back to standard mock dataset templates
         mock_data = get_mock_emails()
         if not mock_data:
-            return 0
+            return processed_count
 
         # Check which mock emails are already processed
+        missing_templates = []
         for item in mock_data:
             mock_id = item["id"]
             existing = await prisma.email.find_unique(where={"message_id": mock_id})
             if not existing:
+                missing_templates.append(item)
+        
+        if missing_templates:
+            # Process all missing templates at once
+            for item in missing_templates:
                 received_at = datetime.datetime.now(datetime.timezone.utc)
                 result = await process_and_save_email(
-                    message_id=mock_id,
+                    message_id=item["id"],
                     sender=item["sender"],
                     subject=item["subject"],
                     body=item["body"],
@@ -327,25 +367,26 @@ async def poll_mock_emails() -> int:
                 )
                 if result:
                     processed_count += 1
-                # Only process one per interval to simulate staggered arrival
-                return processed_count
+            return processed_count
 
-        # 3. If all have been processed, simulate a new random one arriving now
-        import random
-        selected = random.choice(mock_data)
-        timestamp = int(time.time())
-        new_msg_id = f"{selected['id']}-{timestamp}"
-        received_at = datetime.datetime.now(datetime.timezone.utc)
-        
-        result = await process_and_save_email(
-            message_id=new_msg_id,
-            sender=selected["sender"],
-            subject=f"[NEW] {selected['subject']}",
-            body=selected["body"],
-            received_at=received_at
-        )
-        if result:
-            processed_count += 1
+        # 3. If all templates have been processed, simulate a new random one arriving now
+        # but only if we haven't processed anything else this cycle
+        if processed_count == 0:
+            import random
+            selected = random.choice(mock_data)
+            timestamp = int(time.time())
+            new_msg_id = f"{selected['id']}-{timestamp}"
+            received_at = datetime.datetime.now(datetime.timezone.utc)
+            
+            result = await process_and_save_email(
+                message_id=new_msg_id,
+                sender=selected["sender"],
+                subject=f"[NEW] {selected['subject']}",
+                body=selected["body"],
+                received_at=received_at
+            )
+            if result:
+                processed_count += 1
 
     except Exception as e:
         logger.error(f"Mock polling error: {e}")

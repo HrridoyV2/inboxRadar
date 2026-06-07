@@ -155,8 +155,13 @@ Return your answer strictly as a JSON object with this format, using double quot
             # Ensure priority and category are formatted correctly
             data["priority"] = str(data["priority"]).upper()
             data["category"] = str(data["category"]).upper()
-            # Double check type of 'important' is boolean
-            data["important"] = bool(data["important"])
+            
+            # Robust boolean conversion for 'important' (handles strings "true"/"false")
+            if isinstance(data["important"], str):
+                data["important"] = data["important"].lower() == "true"
+            else:
+                data["important"] = bool(data["important"])
+                
             return data
         else:
             logger.warning(f"Gemini returned missing keys: {response.text}. Using fallback rules.")

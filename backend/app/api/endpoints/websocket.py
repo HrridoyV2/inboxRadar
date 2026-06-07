@@ -1,9 +1,10 @@
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, HTTPException
 from typing import List, Any
 import logging
 import jwt
 
 from app.core.config import settings
+from app.core.security import verify_websocket_token
 from app.services import email_poller
 
 logger = logging.getLogger(__name__)
@@ -59,21 +60,16 @@ email_poller.websocket_manager = manager
 
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket, token: str = Query(None)):
-    # 1. Authenticate token
-    if not token:
-        logger.warning("WebSocket connection attempt rejected: missing token query parameter.")
-        await websocket.close(code=4001)
-        return
-        
+    # 1. Authenticate token using centralized security logic
     try:
-        payload = jwt.decode(token, settings.JWT_SECRET, algorithms=["HS256"])
-        if payload.get("iss") != "inboxradar-frontend":
-            logger.warning("WebSocket connection attempt rejected: invalid token issuer.")
-            await websocket.close(code=4002)
-            return
-    except jwt.PyJWTError:
-        logger.warning("WebSocket connection attempt rejected: invalid security token.")
-        await websocket.close(code=4003)
+        verify_websocket_token(token)
+    except HTTPException as e:
+        logger.warning(f"WebSocket connection attempt rejected: {e.detail}")
+        await websocket.close(code=4000 + e.status_code)
+        return
+    except Exception as e:
+        logger.error(f"WebSocket auth error: {e}")
+        await websocket.close(code=4000)
         return
 
     # 2. Allow connection

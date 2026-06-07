@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     
     # Security Settings
     JWT_SECRET: str = "inboxradar-jwt-secret-key-super-secure"
-    ALLOWED_CORS_ORIGINS: str = "https://inboxradar.mutho.tech,http://localhost:3000"
+    ALLOWED_CORS_ORIGINS: str = "https://inboxradar.mutho.tech,http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001"
 
     model_config = SettingsConfigDict(
         env_file=os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), ".env"),

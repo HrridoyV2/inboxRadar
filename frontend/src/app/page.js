@@ -53,7 +53,11 @@ export default function Home() {
   }
   const API_URL = rawApiUrl;
 
-  const token = process.env.NEXT_PUBLIC_API_TOKEN || '';
+  // Authentication Token Logic
+  // 1. Check process.env (passed during build or dev)
+  // 2. Fallback to a pre-shared 'dev-token' that the backend now recognizes to ensure it works "out of the box"
+  const token = process.env.NEXT_PUBLIC_API_TOKEN || 'inboxradar-dev-token-default';
+  
   const WS_URL = API_URL.replace('/api', '').replace('http://', 'ws://').replace('https://', 'wss://') + '/ws' + (token ? `?token=${token}` : '');
 
   // Helper to add log entries

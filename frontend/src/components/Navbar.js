@@ -13,7 +13,11 @@ export default function Navbar({
     <header className="navbar">
       <div className="navbar-brand">
         <div className="brand-icon-wrapper">
-          <Sparkles style={{ width: '1.1rem', height: '1.1rem', color: '#fff' }} />
+          <img 
+            src="https://i.postimg.cc/NFf39kf7/99bf8e7b-fc1e-478a-9f0a-d5b4d34b58d4-removebg-preview.png" 
+            alt="Logo" 
+            style={{ width: '3.5rem', height: '3.5rem', borderRadius: '4px', objectFit: 'cover' }} 
+          />
           <div className="brand-glow-dot"></div>
         </div>
         <div>
