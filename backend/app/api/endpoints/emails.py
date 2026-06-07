@@ -1,15 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-from sqlalchemy import func
 from typing import List, Optional
 import datetime
 import random
 import time
-import os
-import json
+import asyncio
 
-from app.db.session import get_db
-from app.db.models import EmailModel
+from app.db.prisma_client import prisma
+from app.core.security import verify_jwt_token
 from app.schemas.email import (
     EmailResponse, EmailSimulate, EmailSendTest, EmailStats
 )
@@ -22,27 +19,32 @@ from app.core.config import settings
 router = APIRouter()
 
 @router.get("", response_model=List[EmailResponse])
-def get_emails(
+async def get_emails(
     important_only: Optional[bool] = None,
-    db: Session = Depends(get_db)
+    _token: dict = Depends(verify_jwt_token)
 ):
     """Retrieves all processed emails, optionally filtering by importance."""
-    query = db.query(EmailModel)
+    where_clause = {}
     if important_only is not None:
-        query = query.filter(EmailModel.is_important == important_only)
-    return query.order_by(EmailModel.received_at.desc()).all()
+        where_clause["is_important"] = important_only
+        
+    emails = await prisma.email.find_many(
+        where=where_clause,
+        order={"received_at": "desc"}
+    )
+    return emails
 
 
 @router.get("/stats", response_model=EmailStats)
-def get_stats(db: Session = Depends(get_db)):
+async def get_stats(_token: dict = Depends(verify_jwt_token)):
     """Computes analytics statistics of the processed emails."""
-    total = db.query(EmailModel).count()
-    important = db.query(EmailModel).filter(EmailModel.is_important == True).count()
+    total = await prisma.email.count()
+    important = await prisma.email.count(where={"is_important": True})
     unimportant = total - important
     
-    high = db.query(EmailModel).filter(EmailModel.priority == "HIGH").count()
-    medium = db.query(EmailModel).filter(EmailModel.priority == "MEDIUM").count()
-    low = db.query(EmailModel).filter(EmailModel.priority == "LOW").count()
+    high = await prisma.email.count(where={"priority": "HIGH"})
+    medium = await prisma.email.count(where={"priority": "MEDIUM"})
+    low = await prisma.email.count(where={"priority": "LOW"})
     
     return EmailStats(
         total_processed=total,
@@ -55,7 +57,10 @@ def get_stats(db: Session = Depends(get_db)):
 
 
 @router.post("/simulate")
-def simulate_email(payload: EmailSimulate, db: Session = Depends(get_db)):
+async def simulate_email(
+    payload: EmailSimulate,
+    _token: dict = Depends(verify_jwt_token)
+):
     """
     Simulates receiving a mock email scenario.
     In Mock Mode, it processes and saves the email directly.
@@ -79,8 +84,7 @@ def simulate_email(payload: EmailSimulate, db: Session = Depends(get_db)):
     unique_msg_id = f"simulated-{timestamp}-{rand_id}"
     received_at = datetime.datetime.now(datetime.timezone.utc)
     
-    email_record = process_and_save_email(
-        db=db,
+    email_record = await process_and_save_email(
         message_id=unique_msg_id,
         sender=payload.sender,
         subject=payload.subject,
@@ -98,7 +102,10 @@ def simulate_email(payload: EmailSimulate, db: Session = Depends(get_db)):
 
 
 @router.post("/send-test")
-def send_test_email(payload: EmailSendTest):
+async def send_test_email(
+    payload: EmailSendTest,
+    _token: dict = Depends(verify_jwt_token)
+):
     """
     Sends a test email to the connected email user inbox.
     When the poller runs, it will discover and classify this email.
@@ -113,7 +120,7 @@ def send_test_email(payload: EmailSendTest):
     # If in Mock Mode, trigger mock polling immediately so that custom emails are processed instantly
     if settings.MOCK_MODE:
         try:
-            poll_mock_emails()
+            await poll_mock_emails()
         except Exception as e:
             import logging
             logging.getLogger(__name__).error(f"Error triggering immediate mock poll in send-test: {e}")
@@ -122,16 +129,16 @@ def send_test_email(payload: EmailSendTest):
 
 
 @router.post("/trigger-scan")
-def trigger_scan():
+async def trigger_scan(_token: dict = Depends(verify_jwt_token)):
     """
     Forces an immediate scan of the email inbox.
     Checks IMAP server or loads mock data based on settings.MOCK_MODE.
     """
     if settings.MOCK_MODE:
-        new_count = poll_mock_emails()
+        new_count = await poll_mock_emails()
         mode = "Mock"
     else:
-        new_count = poll_imap_inbox()
+        new_count = await asyncio.get_event_loop().run_in_executor(None, poll_imap_inbox)
         mode = "Real IMAP"
         
     return {
@@ -142,6 +149,6 @@ def trigger_scan():
 
 
 @router.get("/mock-dataset")
-def get_mock_dataset():
+def get_mock_dataset(_token: dict = Depends(verify_jwt_token)):
     """Returns the mock emails dataset for the frontend dropdown."""
     return get_mock_emails()

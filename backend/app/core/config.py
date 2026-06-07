@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     # API Settings
     NEXT_PUBLIC_API_URL: str = "http://localhost:8000/api"
     FRONTEND_TARGET: str = "deps"
+    
+    # Security Settings
+    JWT_SECRET: str = "inboxradar-jwt-secret-key-super-secure"
+    ALLOWED_CORS_ORIGINS: str = "https://inboxradar.mutho.tech,http://localhost:3000"
 
     model_config = SettingsConfigDict(
         env_file=os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), ".env"),

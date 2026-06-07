@@ -1,7 +1,9 @@
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from typing import List
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
+from typing import List, Any
 import logging
-from app.db.models import EmailModel
+import jwt
+
+from app.core.config import settings
 from app.services import email_poller
 
 logger = logging.getLogger(__name__)
@@ -23,7 +25,6 @@ class ConnectionManager:
             logger.info(f"WebSocket client disconnected. Active connections: {len(self.active_connections)}")
 
     async def broadcast(self, message: dict):
-        # We make a copy of the connection list in case it changes during iteration
         connections = list(self.active_connections)
         for connection in connections:
             try:
@@ -32,7 +33,7 @@ class ConnectionManager:
                 logger.warning(f"Error broadcasting to connection, removing: {e}")
                 self.disconnect(connection)
 
-    async def broadcast_new_email(self, email_model: EmailModel):
+    async def broadcast_new_email(self, email_model: Any):
         message = {
             "type": "NEW_EMAIL",
             "email": {
@@ -57,13 +58,29 @@ manager = ConnectionManager()
 email_poller.websocket_manager = manager
 
 @router.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
+async def websocket_endpoint(websocket: WebSocket, token: str = Query(None)):
+    # 1. Authenticate token
+    if not token:
+        logger.warning("WebSocket connection attempt rejected: missing token query parameter.")
+        await websocket.close(code=4001)
+        return
+        
+    try:
+        payload = jwt.decode(token, settings.JWT_SECRET, algorithms=["HS256"])
+        if payload.get("iss") != "inboxradar-frontend":
+            logger.warning("WebSocket connection attempt rejected: invalid token issuer.")
+            await websocket.close(code=4002)
+            return
+    except jwt.PyJWTError:
+        logger.warning("WebSocket connection attempt rejected: invalid security token.")
+        await websocket.close(code=4003)
+        return
+
+    # 2. Allow connection
     await manager.connect(websocket)
     try:
-        # Keep connection open and listen for client heartbeats/messages
         while True:
             data = await websocket.receive_text()
-            # Simple heartbeat response
             if data == "ping":
                 await websocket.send_text("pong")
     except WebSocketDisconnect:

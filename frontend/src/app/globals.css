@@ -394,9 +394,9 @@ h1, h2, h3, h4 {
   color: var(--color-text-secondary);
 }
 
-.search-input {
+.search-wrapper .search-input {
   width: 100%;
-  padding-left: 2rem;
+  padding-left: 2.25rem !important;
   background: rgba(4, 5, 8, 0.6);
 }
 
@@ -850,16 +850,7 @@ button {
   -webkit-text-fill-color: transparent;
 }
 
-/* Footer layout */
-.footer-text {
-  text-align: center;
-  font-size: 0.7rem;
-  color: var(--color-text-secondary);
-  border-top: 1px solid var(--border-color);
-  padding-top: 0.75rem;
-  margin-top: 0.5rem;
-  flex-shrink: 0;
-}
+
 
 /* Responsive Overrides */
 @media (max-width: 1200px) {

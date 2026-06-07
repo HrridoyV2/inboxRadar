@@ -1,0 +1,25 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider             = "prisma-client-py"
+  recursive_type_depth = 5
+}
+
+model Email {
+  id           String   @id @default(uuid()) @db.Uuid
+  message_id   String   @unique
+  sender       String
+  subject      String?
+  body         String?
+  received_at  DateTime
+  is_important Boolean  @default(false)
+  priority     String?
+  category     String?
+  reason       String?
+  created_at   DateTime @default(now())
+
+  @@map("emails")
+}
