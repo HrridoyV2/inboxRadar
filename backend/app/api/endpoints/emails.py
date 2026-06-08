@@ -128,7 +128,7 @@ async def send_test_email(
     if not success:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"SMTP Send Failure: {detail_msg}. Hint: Check your internet connection or set MOCK_MODE=true in .env."
+            detail=detail_msg
         )
         
     # If in Mock Mode, trigger mock polling immediately so that custom emails are processed instantly
@@ -139,7 +139,7 @@ async def send_test_email(
             import logging
             logging.getLogger(__name__).error(f"Error triggering immediate mock poll in send-test: {e}")
             
-    return {"status": "success", "message": f"Test email sent to self ({settings.EMAIL_USER})"}
+    return {"status": "success", "message": detail_msg}
 
 
 @router.post("/trigger-scan")

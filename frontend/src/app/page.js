@@ -302,14 +302,16 @@ export default function Home() {
       });
 
       if (res.ok) {
-        if (process.env.NEXT_PUBLIC_MOCK_MODE === "false") {
-          addLog("Test email sent via SMTP! Scanning inbox in 3 seconds...", "success");
-          addToast("Test email sent via SMTP!", "success");
+        const data = await res.json();
+        const successMsg = data.message || "Test email dispatched!";
+        addLog(successMsg, "success");
+        addToast(successMsg, "success");
+        
+        if (successMsg.includes("SMTP SUCCESS") || successMsg.includes("CLOUD API")) {
+          // Only show the scan reminder if a real email was likely sent
           setTimeout(triggerScan, 3000);
-        } else {
-          addLog("Test email dispatched and classified successfully!", "success");
-          addToast("Test email dispatched!", "success");
         }
+        
         setSmtpSubject('');
         setSmtpBody('');
         fetchData();

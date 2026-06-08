@@ -45,49 +45,46 @@ def send_email_via_resend(subject: str, body: str) -> tuple[bool, str]:
 def send_email_to_self(subject: str, body: str) -> tuple[bool, str]:
     """
     Main entry point for sending emails.
-    Prioritizes Cloud HTTP API if configured (to bypass firewall), fallbacks to SMTP.
+    Returns (success, message).
     """
+    # 1. MOCK MODE
     if settings.MOCK_MODE:
-        logger.info(f"[MOCK SMTP] Queueing for local simulation: {subject}")
+        logger.info(f"[MOCK] Queueing simulation: {subject}")
         pending_mock_emails.append({
             "sender": f"Simulator <{settings.SMTP_SENDER_EMAIL}>",
             "subject": subject,
             "body": body
         })
-        return True, "Email simulated locally (Mock Mode)."
+        return True, "MOCK MODE: Email simulated locally (not sent to real inbox)."
 
-    # 1. PRIORITY: Use Cloud HTTP API (Bypass Render Firewall)
-    # If RESEND_API_KEY is present, we use this because it's guaranteed to work over Port 443.
-    if settings.RESEND_API_KEY:
+    # 2. CLOUD HTTP API (Bypass Render Firewall)
+    # Check if key exists and is not just a placeholder
+    if settings.RESEND_API_KEY and len(settings.RESEND_API_KEY) > 10:
         success, msg = send_email_via_resend(subject, body)
+        # If Cloud API is configured, we DO NOT fall back to SMTP 
+        # because SMTP is guaranteed to fail on Render.
         if success:
-            return True, msg
-        logger.warning("Cloud API failed, falling back to SMTP...")
+            return True, f"CLOUD API: {msg}"
+        else:
+            return False, f"CLOUD API ERROR: {msg}. (Check Resend Dashboard)"
 
-    # 2. FALLBACK: Resilient SMTP
-    # This will likely fail on Render Free but works perfectly on Local/VPS.
+    # 3. SMTP FALLBACK (Works on Local/VPS, blocks on Render Free)
     sender_email = settings.SMTP_SENDER_EMAIL
     receiver_email = settings.EMAIL_USER
     password = settings.SMTP_SENDER_PASS
     
-    primary_server = settings.SMTP_SERVER
-    primary_port = settings.SMTP_PORT
-    
+    if not sender_email or not password:
+        return False, "SMTP Error: Credentials missing in environment variables."
+
     attempts = [
-        (primary_server, primary_port),
-        (primary_server, 465 if primary_port == 587 else 587),
+        (settings.SMTP_SERVER, settings.SMTP_PORT),
         ("smtp.googlemail.com", 465),
     ]
     
-    last_error = "Unknown Error"
-
-    if not sender_email or not password:
-        return False, "SMTP Credentials missing."
-
+    last_error = ""
     for server_host, server_port in attempts:
         try:
             logger.info(f"SMTP Attempt: {server_host}:{server_port}...")
-            
             if server_port == 465:
                 server = smtplib.SMTP_SSL(server_host, server_port, timeout=15)
             else:
@@ -105,18 +102,11 @@ def send_email_to_self(subject: str, body: str) -> tuple[bool, str]:
             server.sendmail(sender_email, receiver_email, message.as_string())
             server.quit()
             
-            return True, f"Success via SMTP ({server_host})"
+            return True, f"SMTP SUCCESS: Sent via {server_host}."
 
         except Exception as e:
             last_error = str(e)
             logger.warning(f"SMTP failed on {server_host}:{server_port}: {last_error}")
             continue
 
-    # Final Failure Message
-    if "unreachable" in last_error or "timed out" in last_error:
-        final_msg = f"FIREWALL BLOCK DETECTED: Render is blocking your SMTP ports. To fix this, add 'RESEND_API_KEY' to your environment variables."
-    else:
-        final_msg = f"All attempts failed. Last error: {last_error}"
-        
-    logger.error(final_msg)
-    return False, final_msg
+    return False, f"NETWORK ERROR: All delivery methods failed. Last error: {last_error}. HINT: Render blocks SMTP. Use RESEND_API_KEY for cloud delivery."
