@@ -71,16 +71,16 @@ async def simulate_email(
         sender = f"Simulation Ingest <{settings.EMAIL_USER}>"
 
         if not settings.MOCK_MODE:
-            # Send a real SMTP email containing the template data
+            # Send a real SMTP/Cloud email containing the template data
             success, detail_msg = send_email_to_self(payload.subject, payload.body)
             if not success:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"SMTP Deliverability Error: {detail_msg}. (Network is unreachable). Hint: If you are offline or have no SMTP credentials, set MOCK_MODE=true in your .env file to use the built-in simulator."
+                    detail=f"Email Delivery Failed: {detail_msg}"
                 )
             return {
-                "status": "sent_via_smtp",
-                "message": f"Mock scenario email sent to self ({settings.EMAIL_USER}) via SMTP."
+                "status": "sent_via_cloud",
+                "message": detail_msg
             }
 
         timestamp = int(time.time())
