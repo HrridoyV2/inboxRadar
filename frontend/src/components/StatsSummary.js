@@ -45,7 +45,7 @@ export default function StatsSummary({ stats, mockMode }) {
         <div className="stat-meta">
           <span className="stat-label">Engine Mode</span>
           <span className="stat-value" style={{ fontSize: '0.8rem', color: '#10b981', fontWeight: '700' }}>
-            {mockMode === "false" || mockMode === false ? "LIVE IMAP" : "SIMULATION"}
+            {mockMode}
           </span>
         </div>
       </div>

@@ -85,14 +85,14 @@ app = FastAPI(
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     return JSONResponse(
         status_code=exc.status_code,
-        content={"success": False, "error": exc.detail}
+        content={"success": False, "detail": exc.detail}
     )
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     return JSONResponse(
         status_code=422,
-        content={"success": False, "error": "Validation error", "details": exc.errors()}
+        content={"success": False, "detail": "Validation error", "details": exc.errors()}
     )
 
 @app.exception_handler(Exception)
@@ -100,7 +100,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     logger.error(f"Global exception caught: {exc}", exc_info=True)
     return JSONResponse(
         status_code=500,
-        content={"success": False, "error": "Internal server error"}
+        content={"success": False, "detail": str(exc) if settings.APP_ENV == "development" else "Internal server error"}
     )
 
 # Configure CORS
@@ -119,11 +119,20 @@ app.include_router(api_router, prefix="/api")
 app.include_router(websocket.router)  # WebSocket registered at root (/ws)
 
 @app.get("/")
-def read_root():
+async def read_root():
+    email_count = -1
+    if prisma.is_connected():
+        try:
+            email_count = await prisma.email.count()
+        except Exception:
+            email_count = -2 # Error during count
+            
     return {
         "status": "online",
         "app": "InboxRadar2 AI Email Reading Agent API",
         "version": "1.0.0",
         "environment": settings.APP_ENV,
-        "mock_mode": settings.MOCK_MODE
+        "mock_mode": settings.MOCK_MODE,
+        "database_connected": prisma.is_connected(),
+        "database_record_count": email_count
     }

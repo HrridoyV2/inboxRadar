@@ -10,7 +10,13 @@ export default function EmailCard({ email, selectedEmail, onSelect }) {
       className="alert-card"
       style={{
         borderColor: isSelected ? '#4f46e5' : 'rgba(255, 255, 255, 0.05)',
-        background: isSelected ? 'rgba(79, 70, 229, 0.06)' : 'rgba(16, 21, 38, 0.4)'
+        background: isSelected ? 'rgba(79, 70, 229, 0.06)' : 'rgba(16, 21, 38, 0.4)',
+        padding: '0.625rem 1rem',
+        minHeight: 'auto',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '1rem'
       }}
     >
       <div className="alert-card-left-border" style={{
@@ -20,48 +26,43 @@ export default function EmailCard({ email, selectedEmail, onSelect }) {
           : 'var(--color-text-muted)'
       }}></div>
 
-      <div className="card-header-line">
-        <div className="card-meta-info">
-          <div className="card-sender-row">
-            <span style={{ color: '#ffffff', fontWeight: '600' }}>{email.sender}</span>
-            <span>&bull;</span>
-            <span className="card-timestamp-wrapper">
-              <Clock style={{ width: '0.7rem', height: '0.7rem' }} />
-              {new Date(email.received_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </span>
-          </div>
-          <h4 className="card-subject">{email.subject || '(No Subject)'}</h4>
-        </div>
-
-        <div className="card-badges-wrapper">
-          <span className="badge badge-neutral">
-            {email.category || 'OTHER'}
-          </span>
-          {email.is_important && (
-            <span className={`badge ${
-              email.priority === 'HIGH' ? 'badge-high' :
-              email.priority === 'MEDIUM' ? 'badge-medium' : 'badge-low'
-            }`}>
-              {email.priority}
-            </span>
-          )}
-        </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1, minWidth: 0 }}>
+        <h4 className="card-subject" style={{ 
+          margin: 0, 
+          textAlign: 'left', 
+          fontSize: '0.85rem', 
+          whiteSpace: 'nowrap', 
+          overflow: 'hidden', 
+          textOverflow: 'ellipsis',
+          flex: 1
+        }}>
+          {email.subject || '(No Subject)'}
+        </h4>
+        
+        <span style={{ 
+          fontSize: '0.7rem', 
+          color: 'var(--color-text-secondary)', 
+          whiteSpace: 'nowrap',
+          flexShrink: 0 
+        }}>
+          {email.sender.split('<')[0].trim() || email.sender}
+        </span>
       </div>
 
-      {email.reason && (
-        <div className="card-ai-verdict">
-          <Sparkles style={{ width: '0.8rem', height: '0.8rem' }} />
-          <p><strong>AI Reason:</strong> {email.reason}</p>
-        </div>
-      )}
-
-      <div className="card-footer-line">
-        <span className="card-body-snippet">
-          {email.body ? email.body : '(Empty body)'}
+      <div className="card-badges-wrapper" style={{ flexShrink: 0 }}>
+        {email.is_important && (
+          <span className={`badge ${
+            email.priority === 'HIGH' ? 'badge-high' :
+            email.priority === 'MEDIUM' ? 'badge-medium' : 'badge-low'
+          }`}>
+            {email.priority[0]}
+          </span>
+        )}
+        <span className="badge badge-neutral" style={{ fontSize: '0.6rem' }}>
+          {email.category || 'OTHER'}
         </span>
-        <span className="card-details-link">
-          Inspect
-          <ArrowRight style={{ width: '0.75rem', height: '0.75rem' }} />
+        <span className="card-timestamp-wrapper" style={{ marginLeft: '0.5rem', opacity: 0.6 }}>
+          {new Date(email.received_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
         </span>
       </div>
     </div>

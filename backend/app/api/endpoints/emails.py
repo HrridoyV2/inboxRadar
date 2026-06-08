@@ -66,39 +66,50 @@ async def simulate_email(
     In Mock Mode, it processes and saves the email directly.
     In Real Mode, it dispatches it via SMTP so it goes through the real IMAP poller.
     """
-    if not settings.MOCK_MODE:
-        # Send a real SMTP email containing the template data
-        success, detail_msg = send_email_to_self(payload.subject, payload.body)
-        if not success:
+    try:
+        if not settings.MOCK_MODE:
+            # Send a real SMTP email containing the template data
+            success, detail_msg = send_email_to_self(payload.subject, payload.body)
+            if not success:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"SMTP Deliverability Error: {detail_msg}. (Network is unreachable). Hint: If you are offline or have no SMTP credentials, set MOCK_MODE=true in your .env file to use the built-in simulator."
+                )
+            return {
+                "status": "sent_via_smtp",
+                "message": f"Mock scenario email sent to self ({settings.EMAIL_USER}) via SMTP."
+            }
+
+        timestamp = int(time.time())
+        rand_id = random.randint(1000, 9999)
+        unique_msg_id = f"simulated-{timestamp}-{rand_id}"
+        received_at = datetime.datetime.now(datetime.timezone.utc)
+
+        email_record = await process_and_save_email(
+            message_id=unique_msg_id,
+            sender=payload.sender,
+            subject=payload.subject,
+            body=payload.body,
+            received_at=received_at
+        )
+
+        if not email_record:
+            # This happens if duplicate (unlikely here) or DB error
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to send mock scenario email via SMTP: {detail_msg}"
+                detail="Failed to process and save simulated email. The database might be offline or the message ID is a duplicate."
             )
-        return {
-            "status": "sent_via_smtp",
-            "message": f"Mock scenario email sent to self ({settings.EMAIL_USER}) via SMTP."
-        }
 
-    timestamp = int(time.time())
-    rand_id = random.randint(1000, 9999)
-    unique_msg_id = f"simulated-{timestamp}-{rand_id}"
-    received_at = datetime.datetime.now(datetime.timezone.utc)
-    
-    email_record = await process_and_save_email(
-        message_id=unique_msg_id,
-        sender=payload.sender,
-        subject=payload.subject,
-        body=payload.body,
-        received_at=received_at
-    )
-    
-    if not email_record:
+        return email_record
+    except HTTPException:
+        raise
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Error in simulate_email: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to process and save simulated email."
+            detail=f"Internal Server Error during simulation: {str(e)}"
         )
-        
-    return email_record
 
 
 @router.post("/send-test")
@@ -114,7 +125,7 @@ async def send_test_email(
     if not success:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to send test email to self: {detail_msg}"
+            detail=f"SMTP Send Failure: {detail_msg}. Hint: Check your internet connection or set MOCK_MODE=true in .env."
         )
         
     # If in Mock Mode, trigger mock polling immediately so that custom emails are processed instantly

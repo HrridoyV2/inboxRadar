@@ -1,12 +1,14 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
+import { Loader2 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import StatsSummary from '../components/StatsSummary';
 import SidebarFilters from '../components/SidebarFilters';
 import EmailFeed from '../components/EmailFeed';
 import EmailInspector from '../components/EmailInspector';
 import SandboxControls from '../components/SandboxControls';
+import Toast from '../components/Toast';
 
 export default function Home() {
   const [emails, setEmails] = useState([]);
@@ -32,7 +34,10 @@ export default function Home() {
   
   // Statuses
   const [polling, setPolling] = useState(false);
+  const [loadingData, setLoadingData] = useState(true);
+  const [toasts, setToasts] = useState([]);
   const [wsStatus, setWsStatus] = useState('connecting');
+  const [engineMode, setEngineMode] = useState('SIMULATION');
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [bellRinging, setBellRinging] = useState(false);
   
@@ -54,16 +59,24 @@ export default function Home() {
   const API_URL = rawApiUrl;
 
   // Authentication Token Logic
-  // 1. Check process.env (passed during build or dev)
-  // 2. Fallback to a pre-shared 'dev-token' that the backend now recognizes to ensure it works "out of the box"
   const token = process.env.NEXT_PUBLIC_API_TOKEN || 'inboxradar-dev-token-default';
   
-  const WS_URL = API_URL.replace('/api', '').replace('http://', 'ws://').replace('https://', 'wss://') + '/ws' + (token ? `?token=${token}` : '');
+  const WS_URL = API_URL.replace('/api', '').replace('http://', 'ws://').replace('https://', 'wss://').replace(/\/$/, '') + '/ws' + (token ? `?token=${token}` : '');
 
   // Helper to add log entries
   const addLog = (message, type = 'info') => {
     const timestamp = new Date().toLocaleTimeString();
     setConsoleLogs(prev => [{ timestamp, message, type }, ...prev].slice(0, 50));
+  };
+
+  // Toast Helper
+  const addToast = (message, type = 'info') => {
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, message, type }]);
+  };
+
+  const removeToast = (id) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
   };
 
   // Dynamically synthesize tone using Web Audio API
@@ -119,6 +132,22 @@ export default function Home() {
   // Fetch initial API data
   const fetchData = async () => {
     try {
+      // 1. Fetch System Status (Engine Mode)
+      try {
+        const rootUrl = API_URL.replace('/api', '');
+        const statusRes = await fetch(`${rootUrl}/`);
+        if (statusRes.ok) {
+          const statusData = await statusRes.json();
+          setEngineMode(statusData.mock_mode ? 'SIMULATION' : 'LIVE IMAP');
+          if (statusData.database_connected === false) {
+            addLog("Database is disconnected. Sandbox will not work.", "error");
+            addToast("Database offline!", "error");
+          }
+        }
+      } catch (e) {
+        console.warn("Could not fetch system status root.", e);
+      }
+
       const emailsRes = await fetchWithAuth(`${API_URL}/emails`);
       if (emailsRes.ok) {
         const emailsData = await emailsRes.json();
@@ -139,6 +168,9 @@ export default function Home() {
       }
     } catch (err) {
       addLog("Failed to sync database. Connection offline.", "error");
+      addToast("Failed to connect to database.", "error");
+    } finally {
+      setLoadingData(false);
     }
   };
 
@@ -152,6 +184,7 @@ export default function Home() {
     if (permission === "granted") {
       setNotificationsEnabled(true);
       addLog("Desktop push notifications enabled.", "success");
+      addToast("Notifications enabled!", "success");
       new Notification("InboxRadar AI Activated", {
         body: "You will receive immediate desktop alerts for important incoming mail.",
         tag: "activation"
@@ -176,17 +209,21 @@ export default function Home() {
   const triggerScan = async () => {
     setPolling(true);
     addLog("Scanning inbox...", "info");
+    addToast("Scanning for new emails...", "info");
     try {
       const res = await fetchWithAuth(`${API_URL}/emails/trigger-scan`, { method: 'POST' });
       if (res.ok) {
         const data = await res.json();
         addLog(`Scan complete (${data.mode}). Processed ${data.processed_new_emails} new emails.`, "success");
+        addToast(`Scan complete: ${data.processed_new_emails} new emails.`, "success");
         fetchData();
       } else {
         addLog("Manual inbox scan failed.", "error");
+        addToast("Inbox scan failed.", "error");
       }
     } catch (err) {
       addLog("Network connection error during scan.", "error");
+      addToast("Network error during scan.", "error");
     } finally {
       setPolling(false);
     }
@@ -196,11 +233,13 @@ export default function Home() {
   const simulateMock = async () => {
     const mockEmail = mockDataset.find(e => e.id === selectedMockId);
     if (!mockEmail) {
-      addLog("Select a valid mock scenario first.", "warning");
+      addLog(`Validation Error: No mock scenario found for ID "${selectedMockId}"`, "warning");
+      addToast("Invalid mock scenario selected.", "warning");
       return;
     }
     
     addLog(`Simulating scenario: "${mockEmail.subject}"...`, "info");
+    addToast("Simulating scenario...", "info");
     try {
       const res = await fetchWithAuth(`${API_URL}/emails/simulate`, {
         method: 'POST',
@@ -215,16 +254,22 @@ export default function Home() {
         const data = await res.json();
         if (data.status === "sent_via_smtp") {
           addLog("Mock scenario sent via SMTP! Scanning inbox in 3 seconds...", "success");
+          addToast("Email sent via SMTP!", "success");
           setTimeout(triggerScan, 3000);
         } else {
-          addLog("Mock scenario injected and saved.", "success");
+          addLog(`Mock scenario injected: ID ${data.id || 'unknown'}`, "success");
+          addToast("Email simulated successfully!", "success");
         }
         fetchData();
       } else {
-        addLog("Failed to process simulated scenario.", "error");
+        const errData = await res.json().catch(() => ({ detail: "Network response was not valid JSON" }));
+        const errMsg = errData.detail || errData.error || "Server Error";
+        addLog(`Simulation failed: ${errMsg}`, "error");
+        addToast(`Simulation failed: ${errMsg}`, "error");
       }
     } catch (err) {
-      addLog("Network timeout during mock simulation.", "error");
+      addLog(`Network timeout during mock simulation: ${err.message}`, "error");
+      addToast("Simulation network timeout.", "error");
     }
   };
 
@@ -237,6 +282,7 @@ export default function Home() {
     }
 
     addLog(`Dispatching test mail: "${smtpSubject}"...`, "info");
+    addToast("Dispatching test email...", "info");
     try {
       const res = await fetchWithAuth(`${API_URL}/emails/send-test`, {
         method: 'POST',
@@ -249,9 +295,11 @@ export default function Home() {
       if (res.ok) {
         if (process.env.NEXT_PUBLIC_MOCK_MODE === "false") {
           addLog("Test email sent via SMTP! Scanning inbox in 3 seconds...", "success");
+          addToast("Test email sent via SMTP!", "success");
           setTimeout(triggerScan, 3000);
         } else {
           addLog("Test email dispatched and classified successfully!", "success");
+          addToast("Test email dispatched!", "success");
         }
         setSmtpSubject('');
         setSmtpBody('');
@@ -259,9 +307,11 @@ export default function Home() {
       } else {
         const errData = await res.json();
         addLog(`SMTP deliverability error: ${errData.detail || "Server Error"}`, "error");
+        addToast(`SMTP error: ${errData.detail || "Check logs"}`, "error");
       }
     } catch (err) {
       addLog("Network connection failure during SMTP request.", "error");
+      addToast("Network failure during SMTP.", "error");
     }
   };
 
@@ -275,16 +325,36 @@ export default function Home() {
 
     // Connect WebSocket
     const connectWS = () => {
-      addLog("Connecting WebSocket channel...", "info");
-      const socket = new WebSocket(WS_URL);
+      addLog(`Connecting WebSocket channel: ${WS_URL.split('?')[0]}...`, "info");
+      
+      let socket;
+      try {
+        socket = new WebSocket(WS_URL);
+      } catch (e) {
+        addLog("WebSocket failed to initialize.", "error");
+        setWsStatus('disconnected');
+        return;
+      }
+      
       wsRef.current = socket;
+      
+      let heartbeatInterval;
 
       socket.onopen = () => {
         setWsStatus('connected');
         addLog("Real-time WebSocket connection established.", "success");
+        addToast("Connected to live feed.", "success");
+        
+        // Start heartbeat to keep connection alive
+        heartbeatInterval = setInterval(() => {
+          if (socket.readyState === WebSocket.OPEN) {
+            socket.send("heartbeat");
+          }
+        }, 30000); // Every 30 seconds
       };
 
       socket.onmessage = (event) => {
+        if (event.data === "pong") return;
         try {
           const data = JSON.parse(event.data);
           if (data.type === "NEW_EMAIL") {
@@ -295,6 +365,7 @@ export default function Home() {
             setTimeout(() => setBellRinging(false), 1200);
             
             addLog(`New email processed from ${newEmail.sender}`, "alert");
+            addToast(`New email from ${newEmail.sender}`, "alert");
             
             // Push email and update stats
             setEmails(prev => [newEmail, ...prev]);
@@ -323,10 +394,18 @@ export default function Home() {
         }
       };
 
-      socket.onclose = () => {
+      socket.onclose = (event) => {
+        clearInterval(heartbeatInterval);
         setWsStatus('disconnected');
-        addLog("WebSocket link broken. Reconnecting...", "warning");
-        setTimeout(connectWS, 4000);
+        
+        // If closed with a specific code (4000+), it might be an auth error
+        if (event.code >= 4000) {
+          addLog(`WebSocket connection rejected (Code: ${event.code}).`, "error");
+          addToast("WebSocket auth failed.", "error");
+        } else {
+          addLog("WebSocket link broken. Reconnecting...", "warning");
+          setTimeout(connectWS, 4000);
+        }
       };
 
       socket.onerror = (err) => {
@@ -364,6 +443,18 @@ export default function Home() {
   return (
     <div className="app-container animate-fade-in">
       
+      {/* Toast Container */}
+      <div className="toast-container">
+        {toasts.map(toast => (
+          <Toast 
+            key={toast.id} 
+            message={toast.message} 
+            type={toast.type} 
+            onClose={() => removeToast(toast.id)} 
+          />
+        ))}
+      </div>
+
       {/* 1. Header Navbar */}
       <Navbar 
         wsStatus={wsStatus}
@@ -377,7 +468,7 @@ export default function Home() {
       {/* 2. Stats Summary Grid */}
       <StatsSummary 
         stats={stats}
-        mockMode={process.env.NEXT_PUBLIC_MOCK_MODE}
+        mockMode={engineMode}
       />
 
       {/* 3. Main Split Grid */}
@@ -403,28 +494,36 @@ export default function Home() {
           setSearchQuery={setSearchQuery}
           selectedEmail={selectedEmail}
           onSelectEmail={setSelectedEmail}
+          loading={loadingData}
         />
 
-        {/* Column 3: Dual-State Panel (Inspector OR Sandbox Controls) */}
+        {/* Modal Email Inspector */}
+        {selectedEmail && (
+          <div className="modal-overlay" onClick={() => setSelectedEmail(null)}>
+            <div className="modal-content animate-slide-up" onClick={e => e.stopPropagation()}>
+              <div className="modal-body">
+                <EmailInspector 
+                  selectedEmail={selectedEmail}
+                  onClose={() => setSelectedEmail(null)}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Column 3: Sandbox Controls Panel */}
         <section className="right-panel animate-slide-up">
-          {selectedEmail ? (
-            <EmailInspector 
-              selectedEmail={selectedEmail}
-              onClose={() => setSelectedEmail(null)}
-            />
-          ) : (
-            <SandboxControls 
-              mockDataset={mockDataset}
-              selectedMockId={selectedMockId}
-              setSelectedMockId={setSelectedMockId}
-              onSimulateMock={simulateMock}
-              smtpSubject={smtpSubject}
-              setSmtpSubject={setSmtpSubject}
-              smtpBody={smtpBody}
-              setSmtpBody={setSmtpBody}
-              onSendTestSmtp={sendTestSmtp}
-            />
-          )}
+          <SandboxControls 
+            mockDataset={mockDataset}
+            selectedMockId={selectedMockId}
+            setSelectedMockId={setSelectedMockId}
+            onSimulateMock={simulateMock}
+            smtpSubject={smtpSubject}
+            setSmtpSubject={setSmtpSubject}
+            smtpBody={smtpBody}
+            setSmtpBody={setSmtpBody}
+            onSendTestSmtp={sendTestSmtp}
+          />
         </section>
 
       </div>

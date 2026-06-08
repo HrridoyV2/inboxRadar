@@ -26,14 +26,14 @@ export default function Navbar({
         </div>
       </div>
 
-      <div className="navbar-actions">
-        <div className="badge badge-neutral">
+      <div className="navbar-center">
+        <div className="badge badge-neutral" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
           <span style={{ 
             width: '6px', 
             height: '6px', 
             borderRadius: '50%', 
             background: wsStatus === 'connected' ? '#10b981' : '#f59e0b',
-            marginRight: '4px'
+            marginRight: '6px'
           }}></span>
           WS: {wsStatus}
         </div>
@@ -60,6 +60,10 @@ export default function Navbar({
           <RefreshCw className={polling ? 'animate-spin' : ''} style={{ width: '0.8rem', height: '0.8rem' }} />
           Scan Inbox
         </button>
+      </div>
+
+      <div className="navbar-actions" style={{ width: '180px' }}>
+        {/* Empty placeholder to keep layout balanced or for future profile/settings */}
       </div>
     </header>
   );

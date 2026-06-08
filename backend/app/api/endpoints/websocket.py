@@ -76,9 +76,15 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(None)):
     await manager.connect(websocket)
     try:
         while True:
+            # We use a short timeout to allow the loop to check for connection health
+            # or we can just rely on the receive_text to block until the client sends something
+            # or the connection is dropped.
             data = await websocket.receive_text()
             if data == "ping":
                 await websocket.send_text("pong")
+            elif data == "heartbeat":
+                # Silently acknowledge heartbeat
+                pass
     except WebSocketDisconnect:
         manager.disconnect(websocket)
     except Exception as e:

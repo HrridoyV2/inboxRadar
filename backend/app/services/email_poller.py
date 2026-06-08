@@ -25,39 +25,60 @@ websocket_manager = None
 main_event_loop = None
 
 
+from pathlib import Path
+
 def get_mock_emails() -> List[Dict[str, Any]]:
     """Loads mock emails from the JSON file. Supports local and Docker paths."""
-    paths_to_try = [
-        # Local execution path (4 levels up from backend/app/services)
-        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "mock_emails.json"),
-        # Docker compose run path (3 levels up from app/services inside /app)
-        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "mock_emails.json"),
-        # Root directory fallback
-        "mock_emails.json"
+    # Try multiple strategies to find mock_emails.json
+    current_file = Path(__file__).resolve()
+    
+    potential_paths = [
+        # Strategy 1: Project Root (4 levels up from backend/app/services/)
+        current_file.parents[3] / "mock_emails.json",
+        # Strategy 2: Project Root in Docker (3 levels up from app/services/)
+        current_file.parents[2] / "mock_emails.json",
+        # Strategy 3: Absolute path based on known structure
+        Path("C:/Projects/InboxRadar2/mock_emails.json"),
+        # Strategy 4: Current Working Directory
+        Path.cwd() / "mock_emails.json",
+        # Strategy 5: One level up from CWD
+        Path.cwd().parent / "mock_emails.json",
+        # Strategy 6: Literal fallback
+        Path("mock_emails.json").resolve()
     ]
     
     path = None
-    for p in paths_to_try:
-        if os.path.exists(p):
+    logger.info(f"Searching for mock_emails.json. Script: {current_file}")
+    for p in potential_paths:
+        exists = p.exists()
+        logger.info(f"Path: {p} | Exists: {exists}")
+        if exists:
             path = p
             break
             
     if not path:
-        logger.error(f"mock_emails.json not found in searched locations: {paths_to_try}")
+        logger.error(f"CRITICAL: mock_emails.json not found. Search paths: {[str(p) for p in potential_paths]}")
         return [
             {
                 "id": "fallback-offline",
                 "sender": "monitoring@tqtech.ie",
-                "subject": "CRITICAL: DB Offline",
-                "body": "Database is unreachable.",
+                "subject": "CRITICAL: DB Offline (Fallback)",
+                "body": "Mock data file not found. This is a fallback template.",
                 "expected_category": "SERVER_DOWN",
-                "expected_priority": "HIGH"
+                "expected_priority": "HIGH",
+                "received_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
             }
         ]
 
     try:
         with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
+            # Ensure every item has a timestamp for the UI
+            now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            for item in data:
+                if "received_at" not in item:
+                    item["received_at"] = now
+            return data
     except Exception as e:
         logger.error(f"Failed to load mock_emails.json from {path}: {e}")
         return []
@@ -146,14 +167,31 @@ async def process_and_save_email(
     Checks if email has already been processed using Prisma. If not, processes with AI
     and saves to database. Returns the database model if saved, or None.
     """
+    # 0. Check for DB connection
+    if not prisma.is_connected():
+        logger.warning("Prisma not connected. Attempting immediate connection...")
+        try:
+            await prisma.connect()
+        except Exception as conn_err:
+            logger.error(f"Failed to connect to DB during process_and_save: {conn_err}")
+            return None
+
     # 1. Check for duplicates
-    existing = await prisma.email.find_unique(where={"message_id": message_id})
-    if existing:
-        logger.info(f"Email with message_id {message_id} already processed. Skipping.")
+    try:
+        existing = await prisma.email.find_unique(where={"message_id": message_id})
+        if existing:
+            logger.info(f"Duplicate email {message_id} skipped.")
+            return existing # Return existing to satisfy simulation logic
+    except Exception as e:
+        logger.error(f"Database error checking duplicate for {message_id}: {e}")
         return None
 
     # 2. Classify with AI (Gemini or Fallback)
-    classification = classify_email(sender, subject, body)
+    try:
+        classification = classify_email(sender, subject, body)
+    except Exception as e:
+        logger.error(f"Classification failure for {subject}: {e}")
+        classification = {"important": False, "priority": "LOW", "category": "OTHER", "reason": "System error during classification."}
     
     # 3. Create database record
     try:
@@ -170,20 +208,34 @@ async def process_and_save_email(
                 "reason": classification.get("reason", "No reason provided.")
             }
         )
-        logger.info(f"Processed email: {subject} | Category: {db_email.category} | Important: {db_email.is_important}")
+        logger.info(f"Saved email: {subject} | Category: {db_email.category}")
     except Exception as e:
         logger.error(f"Database error saving email {message_id}: {e}")
         return None
 
-    # 4. Broadcast via WebSocket if WebSocket manager is available (run in main event loop)
-    if websocket_manager and main_event_loop:
-        try:
-            asyncio.run_coroutine_threadsafe(
-                websocket_manager.broadcast_new_email(db_email),
-                main_event_loop
-            )
-        except Exception as ws_err:
-            logger.warning(f"Failed to broadcast new email {message_id} via WebSocket: {ws_err}")
+    # 4. Broadcast via WebSocket if WebSocket manager is available
+    if websocket_manager:
+        if main_event_loop:
+            try:
+                # Check if we are currently running in the main event loop
+                try:
+                    current_loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    current_loop = None
+
+                if current_loop == main_event_loop:
+                    # Already in main loop, just schedule it
+                    asyncio.create_task(websocket_manager.broadcast_new_email(db_email))
+                else:
+                    # In a different thread, use threadsafe bridge
+                    asyncio.run_coroutine_threadsafe(
+                        websocket_manager.broadcast_new_email(db_email),
+                        main_event_loop
+                    )
+            except Exception as ws_err:
+                logger.warning(f"Failed to broadcast new email {message_id} via WebSocket: {ws_err}")
+        else:
+            logger.warning(f"Cannot broadcast email {message_id}: main_event_loop is not set.")
             
     return db_email
 

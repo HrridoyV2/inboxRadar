@@ -7,7 +7,7 @@ class EmailBase(BaseModel):
     sender: str
     subject: Optional[str] = None
     body: Optional[str] = None
-    received_at: datetime
+    received_at: Optional[datetime] = None
 
 class EmailCreate(EmailBase):
     message_id: str
