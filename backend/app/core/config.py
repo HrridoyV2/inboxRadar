@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     # AI
     GEMINI_API_KEY: str = Field(..., alias="GEMINI_API_KEY")
 
+    # Cloud Email API (Bypass for Render SMTP Blocks)
+    RESEND_API_KEY: Optional[str] = Field(None, alias="RESEND_API_KEY")
+
     # Frontend / API
     NEXT_PUBLIC_API_URL: str = Field("http://localhost:8000", alias="NEXT_PUBLIC_API_URL")
     FRONTEND_TARGET: str = Field("deps", alias="FRONTEND_TARGET")

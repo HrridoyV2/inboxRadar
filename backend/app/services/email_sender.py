@@ -1,5 +1,7 @@
 import smtplib
 import socket
+import httpx
+import json
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import logging
@@ -7,17 +9,46 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-# In-memory queue for custom mock emails created via the dashboard (Trigger 2) in Mock Mode.
-# The poller worker will check this list and process these custom emails immediately.
+# In-memory queue for custom mock emails
 pending_mock_emails = []
+
+def send_email_via_resend(subject: str, body: str) -> tuple[bool, str]:
+    """Sends email using the Resend HTTP API (Port 443, never blocked)."""
+    try:
+        url = "https://api.resend.com/emails"
+        headers = {
+            "Authorization": f"Bearer {settings.RESEND_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "from": "InboxRadar <onboarding@resend.dev>", # Default for free keys, or use your domain
+            "to": settings.EMAIL_USER,
+            "subject": subject,
+            "text": body
+        }
+        
+        logger.info(f"Cloud API Attempt: Sending via Resend HTTP API to {settings.EMAIL_USER}...")
+        response = httpx.post(url, headers=headers, json=payload, timeout=15)
+        
+        if response.status_code in [200, 201]:
+            logger.info("Successfully sent email via Cloud HTTP API.")
+            return True, "Success via Cloud HTTP API."
+        else:
+            err_detail = response.json().get('message', 'Unknown API Error')
+            logger.error(f"Resend API Failed ({response.status_code}): {err_detail}")
+            return False, f"Cloud API Error: {err_detail}"
+            
+    except Exception as e:
+        logger.error(f"Resend API exception: {str(e)}")
+        return False, f"Cloud API Exception: {str(e)}"
 
 def send_email_to_self(subject: str, body: str) -> tuple[bool, str]:
     """
-    Sends an email using SMTP to the configured EMAIL_USER.
-    Includes advanced resilience for cloud environments like Render.
+    Main entry point for sending emails.
+    Prioritizes Cloud HTTP API if configured (to bypass firewall), fallbacks to SMTP.
     """
     if settings.MOCK_MODE:
-        logger.info(f"[MOCK SMTP] Queueing custom mock email for local simulation: Subject: '{subject}'")
+        logger.info(f"[MOCK SMTP] Queueing for local simulation: {subject}")
         pending_mock_emails.append({
             "sender": f"Simulator <{settings.SMTP_SENDER_EMAIL}>",
             "subject": subject,
@@ -25,85 +56,67 @@ def send_email_to_self(subject: str, body: str) -> tuple[bool, str]:
         })
         return True, "Email simulated locally (Mock Mode)."
 
-    # Configuration
+    # 1. PRIORITY: Use Cloud HTTP API (Bypass Render Firewall)
+    # If RESEND_API_KEY is present, we use this because it's guaranteed to work over Port 443.
+    if settings.RESEND_API_KEY:
+        success, msg = send_email_via_resend(subject, body)
+        if success:
+            return True, msg
+        logger.warning("Cloud API failed, falling back to SMTP...")
+
+    # 2. FALLBACK: Resilient SMTP
+    # This will likely fail on Render Free but works perfectly on Local/VPS.
     sender_email = settings.SMTP_SENDER_EMAIL
     receiver_email = settings.EMAIL_USER
     password = settings.SMTP_SENDER_PASS
     
-    # We will try a few variations if the primary one fails
-    # 1. Primary config from env
-    # 2. smtp.googlemail.com fallback (sometimes routed differently)
-    # 3. Port fallback (if 587 fails, try 465 and vice versa)
-    
     primary_server = settings.SMTP_SERVER
     primary_port = settings.SMTP_PORT
     
-    fallbacks = [
+    attempts = [
+        (primary_server, primary_port),
         (primary_server, 465 if primary_port == 587 else 587),
-        ("smtp.googlemail.com", primary_port),
-        ("smtp.googlemail.com", 465 if primary_port == 587 else 587),
+        ("smtp.googlemail.com", 465),
     ]
     
-    attempts = [(primary_server, primary_port)] + fallbacks
     last_error = "Unknown Error"
 
     if not sender_email or not password:
-        err_msg = "SMTP Configuration missing: SMTP_SENDER_EMAIL and SMTP_SENDER_PASS must be configured."
-        logger.error(err_msg)
-        return False, err_msg
+        return False, "SMTP Credentials missing."
 
     for server_host, server_port in attempts:
         try:
-            logger.info(f"SMTP Attempt: Connecting to {server_host}:{server_port} (Forcing IPv4)...")
+            logger.info(f"SMTP Attempt: {server_host}:{server_port}...")
             
-            # 1. Force IPv4 Resolution
-            # "Network is unreachable" often happens when a cloud container tries to use IPv6 
-            # but the host/network doesn't support it.
-            try:
-                addr_info = socket.getaddrinfo(server_host, server_port, socket.AF_INET, socket.SOCK_STREAM)
-                resolved_ip = addr_info[0][4][0]
-                logger.info(f"Resolved {server_host} to {resolved_ip}")
-            except Exception as dns_err:
-                logger.warning(f"DNS Resolution failed for {server_host}: {dns_err}")
-                continue
-
-            # 2. Establish Connection
-            message = MIMEMultipart()
-            message["From"] = f"InboxRadar Agent <{sender_email}>"
-            message["To"] = receiver_email
-            message["Subject"] = subject
-            message.attach(MIMEText(body, "plain"))
-
             if server_port == 465:
-                # SSL Connection
                 server = smtplib.SMTP_SSL(server_host, server_port, timeout=15)
             else:
-                # STARTTLS Connection
                 server = smtplib.SMTP(server_host, server_port, timeout=15)
                 server.starttls()
             
-            # 3. Authenticate and Send
-            server.set_debuglevel(1)
             server.login(sender_email, password)
+            
+            message = MIMEMultipart()
+            message["From"] = f"InboxRadar <{sender_email}>"
+            message["To"] = receiver_email
+            message["Subject"] = subject
+            message.attach(MIMEText(body, "plain"))
+            
             server.sendmail(sender_email, receiver_email, message.as_string())
             server.quit()
             
-            logger.info(f"Successfully sent SMTP email via {server_host}:{server_port}")
-            return True, f"Success via {server_host}:{server_port}"
+            return True, f"Success via SMTP ({server_host})"
 
-        except (socket.timeout, socket.error) as net_err:
-            last_error = f"Network Error on {server_host}:{server_port}: {net_err}"
-            logger.warning(last_error)
-            continue
-        except smtplib.SMTPAuthenticationError:
-            err_msg = "SMTP Auth Failed: Check App Password. (Bailing out, fallbacks won't help auth issues)."
-            logger.error(err_msg)
-            return False, err_msg
         except Exception as e:
-            last_error = f"SMTP Error ({type(e).__name__}) on {server_host}:{server_port}: {str(e)}"
-            logger.warning(last_error)
+            last_error = str(e)
+            logger.warning(f"SMTP failed on {server_host}:{server_port}: {last_error}")
             continue
 
-    final_msg = f"All SMTP attempts failed. Last error: {last_error}"
+    # Final Failure Message
+    if "unreachable" in last_error or "timed out" in last_error:
+        final_msg = f"FIREWALL BLOCK DETECTED: Render is blocking your SMTP ports. To fix this, add 'RESEND_API_KEY' to your environment variables."
+    else:
+        final_msg = f"All attempts failed. Last error: {last_error}"
+        
     logger.error(final_msg)
     return False, final_msg
