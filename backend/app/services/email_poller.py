@@ -390,24 +390,7 @@ async def poll_mock_emails() -> int:
                     processed_count += 1
             return processed_count
 
-        # 3. If all templates have been processed, simulate a new random one arriving now
-        # but only if we haven't processed anything else this cycle
-        if processed_count == 0:
-            import random
-            selected = random.choice(mock_data)
-            timestamp = int(time.time())
-            new_msg_id = f"sim-{selected['id']}-{timestamp}"
-            received_at = datetime.datetime.now(datetime.timezone.utc)
-            
-            result = await process_and_save_email(
-                message_id=new_msg_id,
-                sender=selected["sender"],
-                subject=f"[NEW] {selected['subject']}",
-                body=selected["body"],
-                received_at=received_at
-            )
-            if result:
-                processed_count += 1
+        # Step 3 (Random Generation) removed to stop continuous stream as requested.
 
     except Exception as e:
         logger.error(f"Mock polling error: {e}")
