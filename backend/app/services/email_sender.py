@@ -18,7 +18,7 @@ def send_email_to_self(subject: str, body: str) -> tuple[bool, str]:
     if settings.MOCK_MODE:
         logger.info(f"[MOCK SMTP] Queueing custom mock email: Subject: '{subject}'")
         pending_mock_emails.append({
-            "sender": "alexnomad142@gmail.com",
+            "sender": settings.SMTP_SENDER_EMAIL,
             "subject": subject,
             "body": body
         })
@@ -28,12 +28,12 @@ def send_email_to_self(subject: str, body: str) -> tuple[bool, str]:
     smtp_server = "smtp.gmail.com"
     smtp_port = 587
     
-    sender_email = settings.EMAIL_USER
+    sender_email = settings.SMTP_SENDER_EMAIL
     receiver_email = settings.EMAIL_USER
-    password = settings.EMAIL_PASS
+    password = settings.SMTP_SENDER_PASS
 
     if not sender_email or not password:
-        err_msg = "SMTP Configuration missing: EMAIL_USER and EMAIL_PASS must be configured."
+        err_msg = "SMTP Configuration missing: SMTP_SENDER_EMAIL and SMTP_SENDER_PASS must be configured."
         logger.error(err_msg)
         return False, err_msg
 

@@ -61,7 +61,8 @@ export default function Home() {
   // Authentication Token Logic
   const token = process.env.NEXT_PUBLIC_API_TOKEN || 'inboxradar-dev-token-default';
   
-  const WS_URL = API_URL.replace('/api', '').replace('http://', 'ws://').replace('https://', 'wss://').replace(/\/$/, '') + '/ws' + (token ? `?token=${token}` : '');
+  // Construct WS URL - ensuring it points to /api/ws
+  const WS_URL = API_URL.replace('http://', 'ws://').replace('https://', 'wss://').replace(/\/$/, '') + '/ws' + (token ? `?token=${token}` : '');
 
   // Helper to add log entries
   const addLog = (message, type = 'info') => {
@@ -325,13 +326,14 @@ export default function Home() {
 
     // Connect WebSocket
     const connectWS = () => {
-      addLog(`Connecting WebSocket channel: ${WS_URL.split('?')[0]}...`, "info");
+      const displayUrl = WS_URL.split('?')[0];
+      addLog(`Connecting WebSocket channel: ${displayUrl}...`, "info");
       
       let socket;
       try {
         socket = new WebSocket(WS_URL);
       } catch (e) {
-        addLog("WebSocket failed to initialize.", "error");
+        addLog(`WebSocket failed to initialize: ${e.message}`, "error");
         setWsStatus('disconnected');
         return;
       }

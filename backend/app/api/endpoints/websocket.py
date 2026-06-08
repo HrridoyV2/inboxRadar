@@ -60,11 +60,13 @@ email_poller.websocket_manager = manager
 
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket, token: str = Query(None)):
+    logger.info(f"Incoming WebSocket connection request with token: {'present' if token else 'missing'}")
+    
     # 1. Authenticate token using centralized security logic
     try:
         verify_websocket_token(token)
     except HTTPException as e:
-        logger.warning(f"WebSocket connection attempt rejected: {e.detail}")
+        logger.warning(f"WebSocket connection attempt rejected: {e.detail} (Code: {4000 + e.status_code})")
         await websocket.close(code=4000 + e.status_code)
         return
     except Exception as e:
@@ -77,16 +79,16 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(None)):
     try:
         while True:
             # We use a short timeout to allow the loop to check for connection health
-            # or we can just rely on the receive_text to block until the client sends something
-            # or the connection is dropped.
             data = await websocket.receive_text()
             if data == "ping":
                 await websocket.send_text("pong")
             elif data == "heartbeat":
-                # Silently acknowledge heartbeat
+                # acknowledged heartbeat
                 pass
+            else:
+                logger.info(f"Received data from WebSocket client: {data}")
     except WebSocketDisconnect:
         manager.disconnect(websocket)
     except Exception as e:
-        logger.error(f"WebSocket error: {e}")
+        logger.error(f"WebSocket loop error: {e}")
         manager.disconnect(websocket)

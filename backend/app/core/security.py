@@ -39,6 +39,8 @@ def verify_jwt_token(credentials: HTTPAuthorizationCredentials = Depends(securit
 def verify_websocket_token(token: str = Query(None)) -> dict:
     """Verifies the JWT token passed as a query parameter for WebSocket handshakes."""
     if not token:
+        import logging
+        logging.getLogger(__name__).warning("WebSocket auth failed: Token is missing.")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="WebSocket authentication token is missing"
@@ -59,7 +61,9 @@ def verify_websocket_token(token: str = Query(None)) -> dict:
                 detail="Invalid WebSocket token issuer"
             )
         return payload
-    except jwt.PyJWTError:
+    except jwt.PyJWTError as e:
+        import logging
+        logging.getLogger(__name__).error(f"WebSocket JWT decode error: {e}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid WebSocket security token"

@@ -65,6 +65,9 @@ export default function SandboxControls({
         <p style={{ fontSize: '0.725rem', color: '#64748b', margin: '0.25rem 0' }}>
           Simulates sending a custom email to self. Processed instantly.
         </p>
+        <div style={{ fontSize: '0.7rem', color: '#818cf8', fontWeight: '600', marginBottom: '0.5rem' }}>
+          Target: alex142nomad@gmail.com
+        </div>
 
         <div className="form-group">
           <label className="form-label">Subject</label>

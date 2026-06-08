@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     IMAP_SERVER: str = "imap.gmail.com"
     EMAIL_USER: str = "alex142nomad@gmail.com"
     EMAIL_PASS: str = "feufgbcyyyxvbdkl"
+
+    # SMTP Sender Credentials (Trigger 2)
+    SMTP_SENDER_EMAIL: str = "adrijroy99@gmail.com"
+    SMTP_SENDER_PASS: str = "qmme iemy wvpj znhp"
     
     # Gemini AI Key
     GEMINI_API_KEY: Optional[str] = None

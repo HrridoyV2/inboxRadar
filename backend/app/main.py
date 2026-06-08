@@ -116,7 +116,7 @@ app.add_middleware(
 
 # Register routers
 app.include_router(api_router, prefix="/api")
-app.include_router(websocket.router)  # WebSocket registered at root (/ws)
+app.include_router(websocket.router, prefix="/api")  # WebSocket moved to /api/ws
 
 @app.get("/")
 async def read_root():

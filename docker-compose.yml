@@ -1,4 +1,22 @@
 services:
+  db:
+    image: postgres:15-alpine
+    container_name: inboxradar-db
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: inboxradar
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d inboxradar"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: always
+
   backend:
     build:
       context: ./backend
@@ -7,6 +25,8 @@ services:
     ports:
       - "8000:8000"
     command: sh -c "prisma db push --schema=schema.prisma --accept-data-loss && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    environment:
+      - DATABASE_URL=postgresql://user:password@db:5432/inboxradar?sslmode=disable
     env_file:
       - .env
     dns:
@@ -15,6 +35,9 @@ services:
     volumes:
       # Mount mock dataset so changes to it on host reflect inside the container
       - ./mock_emails.json:/app/mock_emails.json
+    depends_on:
+      db:
+        condition: service_healthy
     restart: always
 
   frontend:
@@ -36,3 +59,6 @@ services:
     depends_on:
       - backend
     restart: always
+
+volumes:
+  pgdata:
