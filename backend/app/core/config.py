@@ -33,6 +33,7 @@ class Settings(BaseSettings):
 
     # Email Sender (SMTP)
     SMTP_SERVER: str = Field("smtp.gmail.com", alias="SMTP_SERVER")
+    SMTP_PORT: int = Field(587, alias="SMTP_PORT")
     SMTP_SENDER_EMAIL: str = Field(..., alias="SMTP_SENDER_EMAIL")
     SMTP_SENDER_PASS: str = Field(..., alias="SMTP_SENDER_PASS")
 

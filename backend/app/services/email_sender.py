@@ -26,7 +26,7 @@ def send_email_to_self(subject: str, body: str) -> tuple[bool, str]:
 
     # Use SMTP settings from environment
     smtp_server = settings.SMTP_SERVER
-    smtp_port = 587
+    smtp_port = settings.SMTP_PORT
     
     sender_email = settings.SMTP_SENDER_EMAIL
     receiver_email = settings.EMAIL_USER
@@ -47,10 +47,14 @@ def send_email_to_self(subject: str, body: str) -> tuple[bool, str]:
 
     try:
         # Connect to server and send
-        # Increase timeout for cloud environments like Render
-        server = smtplib.SMTP(smtp_server, smtp_port, timeout=20)
+        # If using port 465, we use SMTP_SSL. Otherwise, we use STARTTLS on 587.
+        if smtp_port == 465:
+            server = smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=20)
+        else:
+            server = smtplib.SMTP(smtp_server, smtp_port, timeout=20)
+            server.starttls()  # Secure the connection
+            
         server.set_debuglevel(1) # Enable debug output in logs
-        server.starttls()  # Secure the connection
         server.login(sender_email, password)
         server.sendmail(sender_email, receiver_email, message.as_string())
         server.quit()
