@@ -10,7 +10,8 @@ export default function SandboxControls({
   setSmtpSubject,
   smtpBody,
   setSmtpBody,
-  onSendTestSmtp
+  onSendTestSmtp,
+  emailUser
 }) {
   return (
     <>
@@ -66,7 +67,7 @@ export default function SandboxControls({
           Simulates sending a custom email to self. Processed instantly.
         </p>
         <div style={{ fontSize: '0.7rem', color: '#818cf8', fontWeight: '600', marginBottom: '0.5rem' }}>
-          Target: alex142nomad@gmail.com
+          Target: {emailUser || 'Not Configured'}
         </div>
 
         <div className="form-group">

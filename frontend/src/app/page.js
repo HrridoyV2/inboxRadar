@@ -47,22 +47,14 @@ export default function Home() {
   const wsRef = useRef(null);
 
   // Configuration URLs
-  let rawApiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
-  try {
-    const urlObj = new URL(rawApiUrl);
-    if (urlObj.pathname === '/' || urlObj.pathname === '') {
-      rawApiUrl = `${urlObj.origin}/api`;
-    }
-  } catch (e) {
-    // Fallback if not a parseable URL
-  }
-  const API_URL = rawApiUrl;
+  // Use the API URL from the environment variable directly.
+  const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
-  // Authentication Token Logic
-  const token = process.env.NEXT_PUBLIC_API_TOKEN || 'inboxradar-dev-token-default';
+  // Authentication Token Logic - now stored in state
+  const [token, setToken] = useState(process.env.NEXT_PUBLIC_API_TOKEN || '');
   
-  // Construct WS URL - ensuring it points to /api/ws
-  const WS_URL = API_URL.replace('http://', 'ws://').replace('https://', 'wss://').replace(/\/$/, '') + '/ws' + (token ? `?token=${token}` : '');
+  // Construct WS URL - ensuring it points to /ws
+  const WS_URL = API_URL ? API_URL.replace('http://', 'ws://').replace('https://', 'wss://').replace(/\/$/, '') + '/ws' + (token ? `?token=${token}` : '') : '';
 
   // Helper to add log entries
   const addLog = (message, type = 'info') => {
@@ -72,7 +64,7 @@ export default function Home() {
 
   useEffect(() => {
     // Check for potential configuration issues
-    if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && API_URL.includes('localhost')) {
+    if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && API_URL && API_URL.includes('localhost')) {
       addLog("WARNING: Frontend is remote but API_URL is localhost. Check NEXT_PUBLIC_API_URL env var.", "warning");
     }
   }, [API_URL]);
@@ -124,12 +116,13 @@ export default function Home() {
   };
 
   // Helper function to query backend with pre-shared JWT Token
-  const fetchWithAuth = async (url, options = {}) => {
+  const fetchWithAuth = async (url, options = {}, tokenOverride = null) => {
+    const activeToken = tokenOverride || token;
     const headers = {
       ...options.headers,
     };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
+    if (activeToken) {
+      headers['Authorization'] = `Bearer ${activeToken}`;
     }
     if (options.body && !headers['Content-Type']) {
       headers['Content-Type'] = 'application/json';
@@ -140,13 +133,20 @@ export default function Home() {
   // Fetch initial API data
   const fetchData = async () => {
     try {
-      // 1. Fetch System Status (Engine Mode)
+      // 1. Fetch System Status (Engine Mode) AND the dynamic API Token
+      let currentToken = token;
       try {
-        const rootUrl = API_URL.replace('/api', '');
-        const statusRes = await fetch(`${rootUrl}/`);
+        const statusRes = await fetch(`${API_URL}/`);
         if (statusRes.ok) {
           const statusData = await statusRes.json();
           setEngineMode(statusData.mock_mode ? 'SIMULATION' : 'LIVE IMAP');
+          
+          if (statusData.api_token) {
+            currentToken = statusData.api_token;
+            setToken(currentToken);
+            addLog("Dynamic API security token synchronized.", "success");
+          }
+
           if (statusData.database_connected === false) {
             addLog("Database is disconnected. Sandbox will not work.", "error");
             addToast("Database offline!", "error");
@@ -156,19 +156,20 @@ export default function Home() {
         console.warn("Could not fetch system status root.", e);
       }
 
-      const emailsRes = await fetchWithAuth(`${API_URL}/emails`);
+      // 2. Use the current token (either from state or just fetched) for authenticated calls
+      const emailsRes = await fetchWithAuth(`${API_URL}/emails`, {}, currentToken);
       if (emailsRes.ok) {
         const emailsData = await emailsRes.json();
         setEmails(emailsData);
       }
       
-      const statsRes = await fetchWithAuth(`${API_URL}/emails/stats`);
+      const statsRes = await fetchWithAuth(`${API_URL}/emails/stats`, {}, currentToken);
       if (statsRes.ok) {
         const statsData = await statsRes.json();
         setStats(statsData);
       }
 
-      const mockRes = await fetchWithAuth(`${API_URL}/emails/mock-dataset`);
+      const mockRes = await fetchWithAuth(`${API_URL}/emails/mock-dataset`, {}, currentToken);
       if (mockRes.ok) {
         const mockData = await mockRes.json();
         setMockDataset(mockData);
@@ -330,8 +331,12 @@ export default function Home() {
     if ("Notification" in window) {
       setNotificationsEnabled(Notification.permission === "granted");
     }
+  }, []);
 
-    // Connect WebSocket
+  // Dedicated WebSocket Effect - Reconnects when token changes
+  useEffect(() => {
+    if (!token || !API_URL) return;
+
     const connectWS = () => {
       const displayUrl = WS_URL.split('?')[0];
       addLog(`Connecting WebSocket channel: ${displayUrl}...`, "info");
@@ -428,7 +433,7 @@ export default function Home() {
     return () => {
       if (wsRef.current) wsRef.current.close();
     };
-  }, []);
+  }, [token, API_URL, WS_URL]);
 
   const filteredEmails = emails.filter(email => {
     if (showImportantOnly && !email.is_important) return false;
@@ -522,7 +527,7 @@ export default function Home() {
 
         {/* Column 3: Sandbox Controls Panel */}
         <section className="right-panel animate-slide-up">
-          <SandboxControls 
+          <SandboxControls
             mockDataset={mockDataset}
             selectedMockId={selectedMockId}
             setSelectedMockId={setSelectedMockId}
@@ -532,9 +537,9 @@ export default function Home() {
             smtpBody={smtpBody}
             setSmtpBody={setSmtpBody}
             onSendTestSmtp={sendTestSmtp}
+            emailUser={process.env.NEXT_PUBLIC_EMAIL_USER}
           />
         </section>
-
       </div>
     </div>
   );

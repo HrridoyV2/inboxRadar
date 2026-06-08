@@ -118,8 +118,8 @@ app.add_middleware(
 )
 
 # Register routers
-app.include_router(api_router, prefix="/api")
-app.include_router(websocket.router, prefix="/api")  # WebSocket moved to /api/ws
+app.include_router(api_router)
+app.include_router(websocket.router)  # WebSocket is at /ws
 
 @app.get("/")
 async def read_root():
@@ -130,12 +130,17 @@ async def read_root():
         except Exception:
             email_count = -2 # Error during count
             
+    # Generate the same pre-shared static JWT Token for the frontend to pick up
+    import jwt
+    token = jwt.encode({"iss": "inboxradar-frontend"}, settings.JWT_SECRET, algorithm="HS256")
+            
     return {
         "status": "online",
         "app": "InboxRadar2 AI Email Reading Agent API",
         "version": "1.0.0",
         "environment": settings.APP_ENV,
         "mock_mode": settings.MOCK_MODE,
+        "api_token": token,
         "database_connected": prisma.is_connected(),
         "database_record_count": email_count
     }

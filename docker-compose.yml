@@ -25,8 +25,6 @@ services:
     ports:
       - "8000:8000"
     command: sh -c "prisma db push --schema=schema.prisma --accept-data-loss && uvicorn app.main:app --host 0.0.0.0 --port 8000"
-    environment:
-      - DATABASE_URL=postgresql://user:password@db:5432/inboxradar?sslmode=disable
     env_file:
       - .env
     dns:
@@ -52,10 +50,6 @@ services:
     dns:
       - 8.8.8.8
       - 1.1.1.1
-    environment:
-      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000/api}
-      - NEXT_PUBLIC_EMAIL_USER=${EMAIL_USER:-alex142nomad@gmail.com}
-      - NEXT_PUBLIC_MOCK_MODE=${MOCK_MODE:-true}
     depends_on:
       - backend
     restart: always

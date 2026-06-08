@@ -1,7 +1,7 @@
 import './globals.css';
 
 export const metadata = {
-  title: 'InboxRadar AI — Intelligent Email Categorization',
+  title: 'InboxRadar — AI Email Reading Agent',
   description: 'AI-powered real-time email reading, classification, priority tracking and instant alerts.',
 };
 

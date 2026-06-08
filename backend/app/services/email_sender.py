@@ -24,8 +24,8 @@ def send_email_to_self(subject: str, body: str) -> tuple[bool, str]:
         })
         return True, "Mock email queued successfully."
 
-    # Standard Gmail SMTP settings
-    smtp_server = "smtp.gmail.com"
+    # Use SMTP settings from environment
+    smtp_server = settings.SMTP_SERVER
     smtp_port = 587
     
     sender_email = settings.SMTP_SENDER_EMAIL

@@ -37,13 +37,11 @@ def get_mock_emails() -> List[Dict[str, Any]]:
         current_file.parents[3] / "mock_emails.json",
         # Strategy 2: Project Root in Docker (3 levels up from app/services/)
         current_file.parents[2] / "mock_emails.json",
-        # Strategy 3: Absolute path based on known structure
-        Path("C:/Projects/InboxRadar2/mock_emails.json"),
-        # Strategy 4: Current Working Directory
+        # Strategy 3: Current Working Directory
         Path.cwd() / "mock_emails.json",
-        # Strategy 5: One level up from CWD
+        # Strategy 4: One level up from CWD
         Path.cwd().parent / "mock_emails.json",
-        # Strategy 6: Literal fallback
+        # Strategy 5: Literal fallback
         Path("mock_emails.json").resolve()
     ]
     
