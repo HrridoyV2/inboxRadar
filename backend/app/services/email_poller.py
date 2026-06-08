@@ -330,19 +330,19 @@ def poll_imap_inbox() -> int:
 
 async def poll_mock_emails() -> int:
     """
-    Simulates receiving emails in mock mode using async Prisma.
-    Runs on the main event loop.
+    Background worker for Mock Mode.
+    ONLY processes manually queued custom emails from the SMTP Test form.
+    Does NOT automatically ingest templates or generate random mail.
     """
-    logger.info("Polling mock emails...")
     processed_count = 0
 
     try:
-        # 1. Process ALL custom user-submitted emails from SMTP Test form
+        # Process ONLY custom user-submitted emails from SMTP Test form queue
         import app.services.email_sender as email_sender
         while email_sender.pending_mock_emails:
             import random
             custom_email = email_sender.pending_mock_emails.pop(0)
-            logger.info(f"Processing custom mock email from queue: Subject: '{custom_email['subject']}'")
+            logger.info(f"Processing manually triggered custom email: '{custom_email['subject']}'")
             
             timestamp = int(time.time())
             unique_msg_id = f"custom-mock-{timestamp}-{random.randint(1000, 9999)}"
@@ -357,40 +357,6 @@ async def poll_mock_emails() -> int:
             )
             if result:
                 processed_count += 1
-
-        # 2. Fall back to cloud-based simulation templates
-        mock_data = await get_simulation_templates()
-        if not mock_data:
-            return processed_count
-
-        # Check which mock emails are already processed
-        missing_templates = []
-        for item in mock_data:
-            # Use a stable hash of subject+body as the message_id for these templates
-            template_hash = get_stable_hash(f"{item['subject']}{item['body']}")
-            mock_id = f"tpl-{template_hash}"
-            
-            existing = await prisma.email.find_unique(where={"message_id": mock_id})
-            if not existing:
-                item["stable_id"] = mock_id
-                missing_templates.append(item)
-        
-        if missing_templates:
-            # Process all missing templates at once
-            for item in missing_templates:
-                received_at = datetime.datetime.now(datetime.timezone.utc)
-                result = await process_and_save_email(
-                    message_id=item["stable_id"],
-                    sender=item["sender"],
-                    subject=item["subject"],
-                    body=item["body"],
-                    received_at=received_at
-                )
-                if result:
-                    processed_count += 1
-            return processed_count
-
-        # Step 3 (Random Generation) removed to stop continuous stream as requested.
 
     except Exception as e:
         logger.error(f"Mock polling error: {e}")
