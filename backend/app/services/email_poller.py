@@ -40,7 +40,7 @@ async def get_simulation_templates() -> List[Dict[str, Any]]:
                 "id": str(t.id),
                 "subject": t.subject,
                 "body": t.body,
-                "sender": settings.EMAIL_USER  # Fixed sender from .env
+                "sender": f"System Simulator <{settings.EMAIL_USER}>"  # Descriptive sender
             }
             for t in templates
         ]

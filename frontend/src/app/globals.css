@@ -521,13 +521,89 @@ h1, h2, h3, h4 {
   padding-right: 1.5rem;
 }
 
-.card-details-link {
-  color: #818cf8;
-  font-weight: 600;
+/* New Grid-based layout for Email Cards to ensure perfect alignment */
+.alert-card.selected {
+  border-color: #4f46e5;
+  background: rgba(79, 70, 229, 0.08);
+}
+
+.card-content-grid {
+  display: grid;
+  grid-template-columns: 1fr 180px 140px 70px; /* Subject | Sender | Badges | Time */
+  align-items: center;
+  gap: 1.5rem;
+  width: 100%;
+  padding-left: 0.5rem;
+}
+
+.card-col-subject {
+  min-width: 0; /* Allow text-overflow ellipsis to work */
+}
+
+.card-subject {
+  margin: 0;
+  text-align: left;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #ffffff;
+}
+
+.card-col-sender {
+  min-width: 0;
+}
+
+.card-sender-text {
+  font-size: 0.725rem;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}
+
+.card-col-badges {
   display: flex;
   align-items: center;
-  gap: 3px;
-  flex-shrink: 0;
+  justify-content: flex-end; /* Align badges to the right of their column */
+  gap: 0.5rem;
+}
+
+.card-col-badges .badge {
+  font-size: 0.6rem;
+  padding: 1px 6px;
+}
+
+.card-col-time {
+  text-align: right;
+}
+
+.card-timestamp {
+  font-size: 0.675rem;
+  color: var(--color-text-secondary);
+  opacity: 0.6;
+  font-family: var(--font-display);
+}
+
+@media (max-width: 1024px) {
+  .card-content-grid {
+    grid-template-columns: 1fr 120px 80px;
+    gap: 1rem;
+  }
+  .card-col-time {
+    display: none; /* Hide time on smaller screens to save space */
+  }
+}
+
+@media (max-width: 768px) {
+  .card-content-grid {
+    grid-template-columns: 1fr 100px;
+    gap: 0.75rem;
+  }
+  .card-col-badges {
+    display: none;
+  }
 }
 
 /* Column 3: Sandbox Controls / Email Details Inspector (Dual-State) */

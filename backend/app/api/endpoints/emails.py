@@ -67,8 +67,8 @@ async def simulate_email(
     In Real Mode, it dispatches it via SMTP so it goes through the real IMAP poller.
     """
     try:
-        # Use the fixed sender from environment for simulations
-        sender = settings.EMAIL_USER
+        # Use the fixed sender from environment for simulations, with a descriptive label
+        sender = f"Simulation Ingest <{settings.EMAIL_USER}>"
 
         if not settings.MOCK_MODE:
             # Send a real SMTP email containing the template data
