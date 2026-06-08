@@ -70,6 +70,13 @@ export default function Home() {
     setConsoleLogs(prev => [{ timestamp, message, type }, ...prev].slice(0, 50));
   };
 
+  useEffect(() => {
+    // Check for potential configuration issues
+    if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && API_URL.includes('localhost')) {
+      addLog("WARNING: Frontend is remote but API_URL is localhost. Check NEXT_PUBLIC_API_URL env var.", "warning");
+    }
+  }, [API_URL]);
+
   // Toast Helper
   const addToast = (message, type = 'info') => {
     const id = Date.now();
@@ -347,12 +354,12 @@ export default function Home() {
         addLog("Real-time WebSocket connection established.", "success");
         addToast("Connected to live feed.", "success");
         
-        // Start heartbeat to keep connection alive
+        // Start heartbeat to keep connection alive (20s for production stability)
         heartbeatInterval = setInterval(() => {
           if (socket.readyState === WebSocket.OPEN) {
             socket.send("heartbeat");
           }
-        }, 30000); // Every 30 seconds
+        }, 20000); 
       };
 
       socket.onmessage = (event) => {

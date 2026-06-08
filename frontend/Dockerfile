@@ -12,5 +12,5 @@ COPY . .
 # Expose port
 EXPOSE 3000
 
-# Run in development mode to support dynamic environment variable loading
-CMD ["npm", "run", "dev"]
+# Run frontend with dynamic port for Render
+CMD ["sh", "-c", "npm run dev -- -p ${PORT:-3000}"]

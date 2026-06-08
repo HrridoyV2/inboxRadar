@@ -105,12 +105,15 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 # Configure CORS
 origins = [origin.strip() for origin in settings.ALLOWED_CORS_ORIGINS.split(",") if origin.strip()]
+if "*" in origins:
+    origins = ["*"]
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_credentials=True,
+    allow_credentials=True if "*" not in origins else False, # Credentials cannot be used with '*'
     allow_methods=["*"],
-    allow_headers=["Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"],
+    allow_headers=["*"], # Allow all headers
     expose_headers=["*"],
 )
 

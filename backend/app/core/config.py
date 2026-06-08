@@ -12,14 +12,14 @@ class Settings(BaseSettings):
     SUPABASE_ANON_KEY: Optional[str] = None
     
     # Email Polling & Simulation Settings
-    MOCK_MODE: bool = True
-    IMAP_SERVER: str = "imap.gmail.com"
-    EMAIL_USER: str = "alex142nomad@gmail.com"
-    EMAIL_PASS: str = "feufgbcyyyxvbdkl"
+    MOCK_MODE: bool = Field(default=True)
+    IMAP_SERVER: str = Field(default="imap.gmail.com")
+    EMAIL_USER: str = Field(default="")
+    EMAIL_PASS: str = Field(default="")
 
     # SMTP Sender Credentials (Trigger 2)
-    SMTP_SENDER_EMAIL: str = "adrijroy99@gmail.com"
-    SMTP_SENDER_PASS: str = "qmme iemy wvpj znhp"
+    SMTP_SENDER_EMAIL: str = Field(default="")
+    SMTP_SENDER_PASS: str = Field(default="")
     
     # Gemini AI Key
     GEMINI_API_KEY: Optional[str] = None
