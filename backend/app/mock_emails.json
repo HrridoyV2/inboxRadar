@@ -1,0 +1,66 @@
+[
+  {
+    "id": "mock-server-offline",
+    "sender": "monitoring@tqtech.ie",
+    "subject": "CRITICAL: Database Server Offline - Production",
+    "body": "Hi Admin,\n\nOur automated monitoring system has detected that the production database server 'db-prod-01' has been offline for the last 5 minutes. Ping tests and connection attempts are timing out. CPU load was spiking at 98% before the connection dropped.\n\nPlease investigate immediately.\n\nBest,\nInfrastructure Bot",
+    "expected_category": "SERVER_DOWN",
+    "expected_priority": "HIGH"
+  },
+  {
+    "id": "mock-payment-failed",
+    "sender": "billing@stripe-alerts.com",
+    "subject": "Urgent: Payment Failed for Invoice #98221",
+    "body": "Dear Customer,\n\nWe were unable to process your payment of $120.00 for your monthly subscription using the credit card on file (ending in 4242). The payment gateway returned the error: 'Insufficient Funds'.\n\nTo keep your services running without interruption, please update your billing details or retry the payment within the next 48 hours.\n\nThank you,\nBilling Support Team",
+    "expected_category": "PAYMENT_ISSUE",
+    "expected_priority": "HIGH"
+  },
+  {
+    "id": "mock-client-complaint",
+    "sender": "sarah.jenkins@bigcorp.com",
+    "subject": "Extremely unsatisfied with latest API downtime",
+    "body": "Dear Support,\n\nI am writing to express my frustration regarding the recurring API downtime we experienced today between 2 PM and 4 PM EST. This interrupted our team's critical workflows and resulted in lost revenue.\n\nWe need a formal explanation of what happened and a confirmation of credits applied to our account according to the SLA. If this continues, we will have to terminate our contract and look for other options.\n\nSarah Jenkins\nDirector of Engineering, BigCorp",
+    "expected_category": "CLIENT_COMPLAINT",
+    "expected_priority": "HIGH"
+  },
+  {
+    "id": "mock-urgent-bug",
+    "sender": "lead-qa@tqtech.ie",
+    "subject": "URGENT BUG: Checkout form broken on Production",
+    "body": "Team,\n\nIt looks like the checkout form on production is completely broken since the last deployment. The 'Complete Order' button is staying disabled even after filling out all the required billing fields. Customers are abandoning their carts.\n\nThis is a blocker. Please revert the deploy or release a hotfix immediately.\n\nDave\nQA Lead",
+    "expected_category": "URGENT_BUG",
+    "expected_priority": "HIGH"
+  },
+  {
+    "id": "mock-low-priority-bill",
+    "sender": "billing@github.com",
+    "subject": "Your monthly GitHub invoice is ready",
+    "body": "Hi there,\n\nYour invoice for GitHub Team subscription (Invoice #INV-2026-06) is now available. Your credit card on file has been successfully charged $40.00. No action is required on your part.\n\nYou can download the PDF receipt directly from your organization settings.\n\nThanks,\nThe GitHub Team",
+    "expected_category": "BILLING",
+    "expected_priority": "LOW"
+  },
+  {
+    "id": "mock-tech-newsletter",
+    "sender": "newsletter@bytesize.dev",
+    "subject": "ByteSize #452: Next.js 16 updates, Python speed gains, and AI coding tips",
+    "body": "Welcome back to ByteSize, your weekly digest of technical articles, news, and project guides.\n\nIn this issue:\n- Vercel announces Next.js 16 alpha with optimized partial rendering.\n- Python 3.14 benchmark reports show massive interpreter speedups.\n- Why agentic AI will change how we think about unit testing.\n\nRead the full stories online at bytesize.dev.",
+    "expected_category": "NEWSLETTER",
+    "expected_priority": "LOW"
+  },
+  {
+    "id": "mock-spam-promo",
+    "sender": "lucky@grand-sweepstakes.net",
+    "subject": "!!! CONGRATULATIONS !!! You won a $1000 Amazon Gift Card !!!",
+    "body": "DEAR WINNER,\n\nYOU HAVE BEEN SELECTED AS THE WINNER OF OUR ANNUAL CHANCE DRAW. YOU CAN CLAIM A $1,000 AMAZON GIFT CARD BY CLICKING THE LINK BELOW AND FILLING OUT THE 2-MINUTE SURVEY.\n\nClaim prize here: http://grand-sweepstakes.net/claim?id=99281\n\nACT FAST! This offer expires in 24 hours.",
+    "expected_category": "SPAM",
+    "expected_priority": "LOW"
+  },
+  {
+    "id": "mock-regular-chat",
+    "sender": "colleague@tqtech.ie",
+    "subject": "Lunch today?",
+    "body": "Hey, we are planning to head to the Mexican place down the street for lunch around 1 PM. Let me know if you want to join so we can reserve a big enough table!\n\nCheers,\nMark",
+    "expected_category": "PERSONAL",
+    "expected_priority": "LOW"
+  }
+]

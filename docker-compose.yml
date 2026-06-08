@@ -30,9 +30,6 @@ services:
     dns:
       - 8.8.8.8
       - 1.1.1.1
-    volumes:
-      # Mount mock dataset so changes to it on host reflect inside the container
-      - ./mock_emails.json:/app/mock_emails.json
     depends_on:
       db:
         condition: service_healthy

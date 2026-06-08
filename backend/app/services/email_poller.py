@@ -27,58 +27,25 @@ main_event_loop = None
 
 from pathlib import Path
 
-def get_mock_emails() -> List[Dict[str, Any]]:
-    """Loads mock emails from the JSON file. Supports local and Docker paths."""
-    # Try multiple strategies to find mock_emails.json
-    current_file = Path(__file__).resolve()
-    
-    potential_paths = [
-        # Strategy 1: Project Root (4 levels up from backend/app/services/)
-        current_file.parents[3] / "mock_emails.json",
-        # Strategy 2: Project Root in Docker (3 levels up from app/services/)
-        current_file.parents[2] / "mock_emails.json",
-        # Strategy 3: Current Working Directory
-        Path.cwd() / "mock_emails.json",
-        # Strategy 4: One level up from CWD
-        Path.cwd().parent / "mock_emails.json",
-        # Strategy 5: Literal fallback
-        Path("mock_emails.json").resolve()
-    ]
-    
-    path = None
-    logger.info(f"Searching for mock_emails.json. Script: {current_file}")
-    for p in potential_paths:
-        exists = p.exists()
-        logger.info(f"Path: {p} | Exists: {exists}")
-        if exists:
-            path = p
-            break
-            
-    if not path:
-        logger.error(f"CRITICAL: mock_emails.json not found. Search paths: {[str(p) for p in potential_paths]}")
+async def get_simulation_templates() -> List[Dict[str, Any]]:
+    """Fetches simulation templates from the database."""
+    try:
+        # 0. Check for DB connection
+        if not prisma.is_connected():
+            await prisma.connect()
+
+        templates = await prisma.simulationtemplate.find_many()
         return [
             {
-                "id": "fallback-offline",
-                "sender": "monitoring@tqtech.ie",
-                "subject": "CRITICAL: DB Offline (Fallback)",
-                "body": "Mock data file not found. This is a fallback template.",
-                "expected_category": "SERVER_DOWN",
-                "expected_priority": "HIGH",
-                "received_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
+                "id": str(t.id),
+                "subject": t.subject,
+                "body": t.body,
+                "sender": settings.EMAIL_USER  # Fixed sender from .env
             }
+            for t in templates
         ]
-
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            # Ensure every item has a timestamp for the UI
-            now = datetime.datetime.now(datetime.timezone.utc).isoformat()
-            for item in data:
-                if "received_at" not in item:
-                    item["received_at"] = now
-            return data
     except Exception as e:
-        logger.error(f"Failed to load mock_emails.json from {path}: {e}")
+        logger.error(f"Failed to fetch simulation templates: {e}")
         return []
 
 
@@ -391,17 +358,21 @@ async def poll_mock_emails() -> int:
             if result:
                 processed_count += 1
 
-        # 2. Fall back to standard mock dataset templates
-        mock_data = get_mock_emails()
+        # 2. Fall back to cloud-based simulation templates
+        mock_data = await get_simulation_templates()
         if not mock_data:
             return processed_count
 
         # Check which mock emails are already processed
         missing_templates = []
         for item in mock_data:
-            mock_id = item["id"]
+            # Use a stable hash of subject+body as the message_id for these templates
+            template_hash = get_stable_hash(f"{item['subject']}{item['body']}")
+            mock_id = f"tpl-{template_hash}"
+            
             existing = await prisma.email.find_unique(where={"message_id": mock_id})
             if not existing:
+                item["stable_id"] = mock_id
                 missing_templates.append(item)
         
         if missing_templates:
@@ -409,7 +380,7 @@ async def poll_mock_emails() -> int:
             for item in missing_templates:
                 received_at = datetime.datetime.now(datetime.timezone.utc)
                 result = await process_and_save_email(
-                    message_id=item["id"],
+                    message_id=item["stable_id"],
                     sender=item["sender"],
                     subject=item["subject"],
                     body=item["body"],
@@ -425,7 +396,7 @@ async def poll_mock_emails() -> int:
             import random
             selected = random.choice(mock_data)
             timestamp = int(time.time())
-            new_msg_id = f"{selected['id']}-{timestamp}"
+            new_msg_id = f"sim-{selected['id']}-{timestamp}"
             received_at = datetime.datetime.now(datetime.timezone.utc)
             
             result = await process_and_save_email(

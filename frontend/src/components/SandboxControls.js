@@ -41,7 +41,7 @@ export default function SandboxControls({
           >
             {mockDataset.map(item => (
               <option key={item.id} value={item.id}>
-                [{item.expected_priority}] {item.subject}
+                {item.subject}
               </option>
             ))}
           </select>

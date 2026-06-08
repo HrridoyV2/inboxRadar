@@ -34,6 +34,35 @@ async def lifespan(app: FastAPI):
     try:
         await prisma.connect()
         logger.info("Prisma client database connection established.")
+        
+        # Seed Simulation Templates if table is empty
+        try:
+            template_count = await prisma.simulationtemplate.count()
+            if template_count == 0:
+                logger.info("Simulation templates table is empty. Attempting to seed from mock_emails.json...")
+                import json
+                from pathlib import Path
+                
+                # In Docker, WORKDIR is /app, and mock_emails.json was copied there
+                mock_file = Path("mock_emails.json")
+                
+                if mock_file.exists():
+                    with open(mock_file, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                    
+                    for item in data:
+                        await prisma.simulationtemplate.create(
+                            data={
+                                "subject": item.get("subject", "No Subject"),
+                                "body": item.get("body", "")
+                            }
+                        )
+                    logger.info(f"Successfully seeded {len(data)} templates to Supabase.")
+                else:
+                    logger.warning(f"mock_emails.json not found at {mock_file.absolute()}. Skipping seeding.")
+        except Exception as seed_err:
+            logger.error(f"Failed to seed templates during startup: {seed_err}")
+
     except Exception as e:
         logger.critical(f"Failed to connect Prisma client to the database: {e}")
         logger.critical("Make sure the database service is reachable and DATABASE_URL is correct.")

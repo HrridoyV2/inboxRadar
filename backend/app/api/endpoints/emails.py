@@ -11,7 +11,7 @@ from app.schemas.email import (
     EmailResponse, EmailSimulate, EmailSendTest, EmailStats
 )
 from app.services.email_poller import (
-    process_and_save_email, poll_imap_inbox, poll_mock_emails, get_mock_emails
+    process_and_save_email, poll_imap_inbox, poll_mock_emails, get_simulation_templates
 )
 from app.services.email_sender import send_email_to_self
 from app.core.config import settings
@@ -67,6 +67,9 @@ async def simulate_email(
     In Real Mode, it dispatches it via SMTP so it goes through the real IMAP poller.
     """
     try:
+        # Use the fixed sender from environment for simulations
+        sender = settings.EMAIL_USER
+
         if not settings.MOCK_MODE:
             # Send a real SMTP email containing the template data
             success, detail_msg = send_email_to_self(payload.subject, payload.body)
@@ -87,7 +90,7 @@ async def simulate_email(
 
         email_record = await process_and_save_email(
             message_id=unique_msg_id,
-            sender=payload.sender,
+            sender=sender,
             subject=payload.subject,
             body=payload.body,
             received_at=received_at
@@ -160,6 +163,6 @@ async def trigger_scan(_token: dict = Depends(verify_jwt_token)):
 
 
 @router.get("/mock-dataset")
-def get_mock_dataset(_token: dict = Depends(verify_jwt_token)):
+async def get_mock_dataset(_token: dict = Depends(verify_jwt_token)):
     """Returns the mock emails dataset for the frontend dropdown."""
-    return get_mock_emails()
+    return await get_simulation_templates()
