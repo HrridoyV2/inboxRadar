@@ -250,7 +250,7 @@ def process_and_save_email_sync(
 def poll_imap_inbox() -> int:
     """
     Connects to the IMAP server and checks for new emails.
-    Runs synchronously inside an executor.
+    Limits processing to 5 most recent emails to prevent flooding.
     """
     if not settings.EMAIL_USER or not settings.EMAIL_PASS:
         logger.error("IMAP poller failed: EMAIL_USER and EMAIL_PASS must be configured.")
@@ -269,8 +269,14 @@ def poll_imap_inbox() -> int:
             logger.error("IMAP search failed.")
             return 0
 
-        mail_ids = response[0].split()
-        logger.info(f"Found {len(mail_ids)} unread emails.")
+        # LIMIT: Only take the last 5 IDs (most recent) to prevent "continuous" processing flood
+        all_mail_ids = response[0].split()
+        mail_ids = all_mail_ids[-5:] if len(all_mail_ids) > 5 else all_mail_ids
+        
+        if len(all_mail_ids) > 0:
+            logger.info(f"Found {len(all_mail_ids)} unread emails. Processing {len(mail_ids)} most recent.")
+        else:
+            return 0
 
         for m_id in mail_ids:
             status, msg_data = mail.fetch(m_id, "(RFC822)")
@@ -284,32 +290,27 @@ def poll_imap_inbox() -> int:
                     
                     msg_id = msg.get("Message-ID")
                     if not msg_id:
-                        # Use a stable hash of sender, subject and date for fallback ID
                         raw_id_seed = f"{msg.get('From', '')}{msg.get('Subject', '')}{msg.get('Date', '')}"
                         msg_id = f"fallback-{get_stable_hash(raw_id_seed)}"
                     
                     msg_id = msg_id.strip("<>")
 
-                    # Check duplicate (thread-safe)
                     if check_duplicate_sync(msg_id):
                         continue
 
-                    # Extract details
                     sender = decode_mime_words(msg.get("From"))
                     subject = decode_mime_words(msg.get("Subject"))
                     
-                    # Parse date
                     date_str = msg.get("Date")
                     received_at = datetime.datetime.now(datetime.timezone.utc)
                     if date_str:
                         try:
                             received_at = parsedate_to_datetime(date_str)
-                        except Exception as e:
-                            logger.warning(f"Failed to parse email date: {e}")
+                        except Exception: pass
 
                     body = parse_email_body(msg)
 
-                    # Process and save (thread-safe)
+                    logger.info(f"[POLLER] Saving REAL email from {sender}")
                     result = process_and_save_email_sync(
                         message_id=msg_id,
                         sender=sender,
@@ -331,21 +332,19 @@ def poll_imap_inbox() -> int:
 async def poll_mock_emails() -> int:
     """
     Background worker for Mock Mode.
-    ONLY processes manually queued custom emails from the SMTP Test form.
-    Does NOT automatically ingest templates or generate random mail.
+    ONLY processes manually queued custom emails.
     """
     processed_count = 0
-
     try:
-        # Process ONLY custom user-submitted emails from SMTP Test form queue
         import app.services.email_sender as email_sender
-        while email_sender.pending_mock_emails:
-            import random
-            custom_email = email_sender.pending_mock_emails.pop(0)
-            logger.info(f"Processing manually triggered custom email: '{custom_email['subject']}'")
-            
+        # Use a list copy to avoid modification during iteration
+        pending = list(email_sender.pending_mock_emails)
+        email_sender.pending_mock_emails = [] # Clear the original queue immediately
+        
+        for custom_email in pending:
+            logger.info(f"[POLLER] Processing manual simulation: '{custom_email['subject']}'")
             timestamp = int(time.time())
-            unique_msg_id = f"custom-mock-{timestamp}-{random.randint(1000, 9999)}"
+            unique_msg_id = f"manual-{timestamp}-{get_stable_hash(custom_email['subject'])}"
             received_at = datetime.datetime.now(datetime.timezone.utc)
             
             result = await process_and_save_email(
@@ -357,30 +356,29 @@ async def poll_mock_emails() -> int:
             )
             if result:
                 processed_count += 1
-
     except Exception as e:
         logger.error(f"Mock polling error: {e}")
-
     return processed_count
 
 
 async def poller_loop():
     """
-    Infinite background loop that runs the polling service.
-    Default interval is 2 minutes (120 seconds).
+    Background loop. Now slowed down to 5 minutes to prevent any race conditions.
     """
-    await asyncio.sleep(5)
+    await asyncio.sleep(10) # Wait for server to settle
     
-    interval = 120  # 2 minutes
-    logger.info("Background Email Poller starting...")
+    interval = 300  # 5 minutes
+    logger.info("Background Email Poller starting (Interval: 5 min)...")
     
     while True:
         try:
             if settings.MOCK_MODE:
+                # In mock mode, we only process manually triggered emails
                 await poll_mock_emails()
             else:
+                # In real mode, we poll IMAP but with a strict limit
                 await asyncio.get_event_loop().run_in_executor(None, poll_imap_inbox)
         except Exception as e:
-            logger.error(f"Error in poller worker loop: {e}")
+            logger.error(f"Critical error in poller loop: {e}")
             
         await asyncio.sleep(interval)
