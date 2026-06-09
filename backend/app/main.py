@@ -166,7 +166,7 @@ async def read_root():
     return {
         "status": "online",
         "app": "InboxRadar2 AI Email Reading Agent API",
-        "version": "1.0.0",
+        "version": "1.0.1",
         "environment": settings.APP_ENV,
         "mock_mode": settings.MOCK_MODE,
         "api_token": token,
