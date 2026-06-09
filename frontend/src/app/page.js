@@ -262,13 +262,13 @@ export default function Home() {
       if (res.ok) {
         const data = await res.json();
         if (data.status === "sent_via_smtp") {
-          addLog("Mock scenario sent via SMTP! Scanning inbox in 3 seconds...", "success");
+          addLog("Mock scenario sent via SMTP! Scanning inbox...", "success");
           addToast("Email sent via SMTP!", "success");
-          setTimeout(triggerScan, 3000);
         } else {
           addLog(`Mock scenario injected: ID ${data.id || 'unknown'}`, "success");
           addToast("Email simulated successfully!", "success");
         }
+        setTimeout(triggerScan, 1500);
         fetchData();
       } else {
         const errData = await res.json().catch(() => ({ detail: "Network response was not valid JSON" }));
@@ -307,10 +307,7 @@ export default function Home() {
         addLog(successMsg, "success");
         addToast(successMsg, "success");
         
-        if (successMsg.includes("SMTP SUCCESS") || successMsg.includes("CLOUD API")) {
-          // Only show the scan reminder if a real email was likely sent
-          setTimeout(triggerScan, 3000);
-        }
+        setTimeout(triggerScan, 1500);
         
         setSmtpSubject('');
         setSmtpBody('');
