@@ -145,15 +145,14 @@ async def send_test_email(
 @router.post("/trigger-scan")
 async def trigger_scan(_token: dict = Depends(verify_jwt_token)):
     """
-    Forces an immediate scan of the email inbox.
-    Checks IMAP server or loads mock data based on settings.MOCK_MODE.
+    Actively polls the cloud IMAP or mock queue for new emails.
     """
     if settings.MOCK_MODE:
         new_count = await poll_mock_emails()
-        mode = "Mock"
+        mode = "MOCK_SYNC"
     else:
         new_count = await asyncio.get_event_loop().run_in_executor(None, poll_imap_inbox)
-        mode = "Real IMAP"
+        mode = "IMAP_SYNC"
         
     return {
         "status": "success",

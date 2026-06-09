@@ -146,7 +146,7 @@ async def process_and_save_email(
         existing = await prisma.email.find_unique(where={"message_id": message_id})
         if existing:
             logger.info(f"Duplicate email {message_id} skipped.")
-            return existing # Return existing to satisfy simulation logic
+            return None # Return None for duplicates so they aren't counted as 'new'
     except Exception as e:
         logger.error(f"Database error checking duplicate for {message_id}: {e}")
         return None
@@ -279,6 +279,20 @@ def poll_imap_inbox() -> int:
             return 0
 
         for m_id in mail_ids:
+            # First, fetch just the headers to check for duplicate message-id WITHOUT marking as seen
+            status, header_data = mail.fetch(m_id, "(BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)])")
+            if status == "OK" and isinstance(header_data[0], tuple):
+                header_msg = email.message_from_bytes(header_data[0][1])
+                msg_id = header_msg.get("Message-ID")
+                if msg_id:
+                    msg_id = msg_id.strip("<>")
+                    if check_duplicate_sync(msg_id):
+                        # It's a duplicate, mark it as SEEN anyway so we don't fetch it next time, 
+                        # but don't process it.
+                        mail.store(m_id, "+FLAGS", "\\Seen")
+                        continue
+
+            # If not a duplicate or we couldn't tell, fetch the full message (marks as seen)
             status, msg_data = mail.fetch(m_id, "(RFC822)")
             if status != "OK":
                 logger.error(f"Failed to fetch mail ID {m_id}")
@@ -295,6 +309,7 @@ def poll_imap_inbox() -> int:
                     
                     msg_id = msg_id.strip("<>")
 
+                    # Final duplicate check just in case
                     if check_duplicate_sync(msg_id):
                         continue
 

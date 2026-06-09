@@ -15,7 +15,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-    restart: always
+    restart: "no"
 
   backend:
     build:
@@ -24,7 +24,13 @@ services:
     container_name: inboxradar-backend
     ports:
       - "8000:8000"
-    command: sh -c "prisma db push --schema=schema.prisma --accept-data-loss && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    volumes:
+      - ./backend:/app
+      - /app/node_modules # prevent overwriting container's prisma/other installs if they existed
+    command: sh -c "prisma db push --schema=schema.prisma --accept-data-loss && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    environment:
+      - WATCHFILES_FORCE_POLLING=true
+      - CHOKIDAR_USEPOLLING=true
     env_file:
       - .env
     dns:
@@ -33,7 +39,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    restart: always
+    restart: "no"
 
   frontend:
     build:
@@ -42,6 +48,12 @@ services:
     container_name: inboxradar-frontend
     ports:
       - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - WATCHPACK_POLLING=true
+      - CHOKIDAR_USEPOLLING=true
     env_file:
       - .env
     dns:
@@ -49,7 +61,7 @@ services:
       - 1.1.1.1
     depends_on:
       - backend
-    restart: always
+    restart: "no"
 
 volumes:
   pgdata:
