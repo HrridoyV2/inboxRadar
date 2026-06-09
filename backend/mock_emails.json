@@ -1,22 +1,122 @@
 [
   {
     "subject": "CRITICAL: Database Cluster 'db-prod-01' is UNREACHABLE",
-    "body": "Monitoring Alert: The production database cluster 'db-prod-01' has stopped responding to health checks. Connection pool is exhausted and latency is > 5000ms. Immediate investigation required."
+    "body": "Monitoring Alert: The production database cluster 'db-prod-01' has stopped responding to health checks. Connection pool is exhausted and latency is > 5000ms. Immediate investigation required.",
+    "is_important": true,
+    "priority": "HIGH",
+    "category": "SYSTEM_DOWN",
+    "reason": "Database is unreachable causing widespread outages."
   },
   {
     "subject": "Urgent: Payment Declined for Subscription #INV-8821",
-    "body": "Dear Customer, we were unable to process your recent payment for your 'Enterprise' plan. Your account is scheduled for suspension in 24 hours unless billing details are updated."
+    "body": "Dear Customer, we were unable to process your recent payment for your 'Enterprise' plan. Your account is scheduled for suspension in 24 hours unless billing details are updated.",
+    "is_important": true,
+    "priority": "HIGH",
+    "category": "BILLING",
+    "reason": "Payment failed and account risks suspension."
   },
   {
     "subject": "Client Complaint: 4-hour downtime on Tuesday",
-    "body": "Hi, I am very disappointed with the recent downtime. Our operations were paralyzed for hours. We expect a formal RCA and a credit to our account for this SLA breach."
+    "body": "Hi, I am very disappointed with the recent downtime. Our operations were paralyzed for hours. We expect a formal RCA and a credit to our account for this SLA breach.",
+    "is_important": true,
+    "priority": "HIGH",
+    "category": "COMPLAINT",
+    "reason": "Customer is extremely dissatisfied due to SLA breach."
   },
   {
     "subject": "SECURITY ALERT: Unauthorized Login Attempt Detected",
-    "body": "We detected a login attempt to your admin account from an unrecognized IP address (192.168.1.1) in a different country. Please verify if this was you or change your password immediately."
+    "body": "We detected a login attempt to your admin account from an unrecognized IP address (192.168.1.1) in a different country. Please verify if this was you or change your password immediately.",
+    "is_important": true,
+    "priority": "HIGH",
+    "category": "SECURITY",
+    "reason": "Potential account compromise detected."
   },
   {
     "subject": "Feature Request: Export Analytics to PDF",
-    "body": "Hi team, it would be great if we could export the weekly email stats to a PDF report instead of just CSV. Our management team prefers PDF for their weekly review meetings."
+    "body": "Hi team, it would be great if we could export the weekly email stats to a PDF report instead of just CSV. Our management team prefers PDF for their weekly review meetings.",
+    "is_important": false,
+    "priority": "LOW",
+    "category": "FEEDBACK",
+    "reason": "Feature request, not urgent."
+  },
+  {
+    "subject": "Weekly Newsletter: Updates & Tips",
+    "body": "Check out our latest tips for improving productivity. Read more on our blog.",
+    "is_important": false,
+    "priority": "LOW",
+    "category": "NEWSLETTER",
+    "reason": "Automated marketing newsletter."
+  },
+  {
+    "subject": "System Maintenance Scheduled",
+    "body": "We will be performing routine maintenance this weekend. Expect 5 minutes of downtime.",
+    "is_important": false,
+    "priority": "LOW",
+    "category": "MAINTENANCE",
+    "reason": "Informational notice about future maintenance."
+  },
+  {
+    "subject": "Invoice #49281 Paid Successfully",
+    "body": "Thank you for your payment. Your enterprise plan is active for another month.",
+    "is_important": false,
+    "priority": "LOW",
+    "category": "BILLING",
+    "reason": "Automated payment receipt."
+  },
+  {
+    "subject": "URGENT: Legal Notice - Terms of Service Violation",
+    "body": "Your account has been flagged for violating our Terms of Service section 4.2. Please respond within 48 hours to avoid permanent termination.",
+    "is_important": true,
+    "priority": "HIGH",
+    "category": "LEGAL",
+    "reason": "Account flagged for severe violation."
+  },
+  {
+    "subject": "Lunch in the cafeteria today",
+    "body": "Hey team, there's pizza in the cafeteria if anyone is hungry.",
+    "is_important": false,
+    "priority": "LOW",
+    "category": "INTERNAL",
+    "reason": "Casual internal communication."
+  },
+  {
+    "subject": "API Deprecation Warning: v1 endpoints",
+    "body": "Reminder that v1 API endpoints will be deprecated on the 1st of next month. Please migrate to v2.",
+    "is_important": true,
+    "priority": "MEDIUM",
+    "category": "DEVELOPER",
+    "reason": "Requires developer action to prevent breakage."
+  },
+  {
+    "subject": "Bug Report: Login page 404s on Safari",
+    "body": "When using Safari on iOS, clicking the login button redirects to a 404 page.",
+    "is_important": true,
+    "priority": "MEDIUM",
+    "category": "BUG",
+    "reason": "Customer reported bug affecting user experience."
+  },
+  {
+    "subject": "Your package has been delivered",
+    "body": "Your recent order #12345 has been delivered to your front porch.",
+    "is_important": false,
+    "priority": "LOW",
+    "category": "NOTIFICATION",
+    "reason": "Automated delivery notification."
+  },
+  {
+    "subject": "Welcome to our platform!",
+    "body": "Thanks for signing up. Here are 3 steps to get started with your new account.",
+    "is_important": false,
+    "priority": "LOW",
+    "category": "MARKETING",
+    "reason": "Automated welcome email."
+  },
+  {
+    "subject": "Meeting Rescheduled: Q3 Planning",
+    "body": "The Q3 planning meeting has been moved to 2PM tomorrow. Please update your calendars.",
+    "is_important": true,
+    "priority": "MEDIUM",
+    "category": "MEETING",
+    "reason": "Schedule change for important meeting."
   }
 ]

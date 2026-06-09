@@ -26,9 +26,13 @@ model Email {
 
 model SimulationTemplate {
   id         String   @id @default(uuid()) @db.Uuid
-  subject    String
-  body       String
-  created_at DateTime @default(now())
+  subject      String
+  body         String
+  is_important Boolean  @default(false)
+  priority     String?
+  category     String?
+  reason       String?
+  created_at   DateTime @default(now())
 
   @@map("simulation_templates")
 }

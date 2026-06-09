@@ -18,15 +18,21 @@ export default function Toast({ message, type = 'info', onClose, duration = 5000
   };
 
   const bgColors = {
-    success: 'bg-emerald-600 border-emerald-500 text-white',
-    error: 'bg-rose-600 border-rose-500 text-white',
-    warning: 'bg-amber-500 border-amber-400 text-white',
-    info: 'bg-blue-600 border-blue-500 text-white',
-    alert: 'bg-purple-600 border-purple-500 text-white'
+    success: { bg: '#059669', border: '#10b981' },
+    error: { bg: '#e11d48', border: '#f43f5e' },
+    warning: { bg: '#d97706', border: '#fbbf24' },
+    info: { bg: '#2563eb', border: '#3b82f6' },
+    alert: { bg: '#7c3aed', border: '#8b5cf6' }
   };
 
+  const styleObj = bgColors[type] || bgColors.info;
+
   return (
-    <div className={`flex items-center p-3 mb-4 text-sm border rounded-lg shadow-2xl animate-slide-in-right whitespace-nowrap ${bgColors[type] || bgColors.info}`} role="alert">
+    <div 
+      className="flex items-center p-3 mb-4 text-sm border rounded-lg shadow-2xl animate-slide-in-right whitespace-nowrap text-white" 
+      style={{ backgroundColor: styleObj.bg, borderColor: styleObj.border }}
+      role="alert"
+    >
       <div className="flex-shrink-0 flex items-center justify-center">
         {React.cloneElement(icons[type] || icons.info, { className: 'w-4 h-4 text-white' })}
       </div>
