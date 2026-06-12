@@ -34,50 +34,21 @@ async def get_simulation_templates() -> List[Dict[str, Any]]:
         if not prisma.is_connected():
             await prisma.connect()
 
-        templates = await prisma.simulationtemplate.find_many()
+        # Use raw query to bypass any schema mismatch between local prisma client and live DB
+        templates = await prisma.query_raw("SELECT * FROM simulation_templates ORDER BY created_at DESC LIMIT 50;")
         
-        if len(templates) == 0:
-            logger.info("Simulation templates table is empty. Attempting to seed from code...")
-            TEMPLATES = [
-                {
-                    "subject": "CRITICAL: Database Cluster 'db-prod-01' is UNREACHABLE",
-                    "body": "Monitoring Alert: The production database cluster 'db-prod-01' has stopped responding to health checks. Connection pool is exhausted and latency is > 5000ms. Immediate investigation required."
-                },
-                {
-                    "subject": "Urgent: Payment Declined for Subscription #INV-8821",
-                    "body": "Dear Customer, we were unable to process your recent payment for your 'Enterprise' plan. Your account is scheduled for suspension in 24 hours unless billing details are updated."
-                },
-                {
-                    "subject": "Client Complaint: 4-hour downtime on Tuesday",
-                    "body": "Hi, I am very disappointed with the recent downtime. Our operations were paralyzed for hours. We expect a formal RCA and a credit to our account for this SLA breach."
-                },
-                {
-                    "subject": "SECURITY ALERT: Unauthorized Login Attempt Detected",
-                    "body": "We detected a login attempt to your admin account from an unrecognized IP address (192.168.1.1) in a different country. Please verify if this was you or change your password immediately."
-                },
-                {
-                    "subject": "Feature Request: Export Analytics to PDF",
-                    "body": "Hi team, it would be great if we could export the weekly email stats to a PDF report instead of just CSV. Our management team prefers PDF for their weekly review meetings."
-                }
-            ]
-            for item in TEMPLATES:
-                await prisma.simulationtemplate.create(
-                    data={
-                        "subject": item.get("subject", "No Subject"),
-                        "body": item.get("body", "")
-                    }
-                )
-            templates = await prisma.simulationtemplate.find_many()
+        result = []
+        for t in templates:
+            # Handle different DB column names (e.g. sender vs from)
+            sender_val = t.get('from') or t.get('sender') or f"System Simulator <{settings.EMAIL_USER}>"
+            result.append({
+                "id": str(t.get('id', '')),
+                "subject": t.get('subject', 'No Subject'),
+                "body": t.get('body', ''),
+                "sender": sender_val
+            })
             
-        return [
-            {
-                "id": str(t.id),
-                "subject": t.subject,
-                "body": t.body,
-                "sender": f"System Simulator <{settings.EMAIL_USER}>"  # Descriptive sender
-            }
-            for t in templates
-        ]
+        return result
     except Exception as e:
         logger.error(f"Failed to fetch simulation templates: {e}")
         return []
