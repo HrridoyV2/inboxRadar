@@ -35,6 +35,40 @@ async def get_simulation_templates() -> List[Dict[str, Any]]:
             await prisma.connect()
 
         templates = await prisma.simulationtemplate.find_many()
+        
+        if len(templates) == 0:
+            logger.info("Simulation templates table is empty. Attempting to seed from code...")
+            TEMPLATES = [
+                {
+                    "subject": "CRITICAL: Database Cluster 'db-prod-01' is UNREACHABLE",
+                    "body": "Monitoring Alert: The production database cluster 'db-prod-01' has stopped responding to health checks. Connection pool is exhausted and latency is > 5000ms. Immediate investigation required."
+                },
+                {
+                    "subject": "Urgent: Payment Declined for Subscription #INV-8821",
+                    "body": "Dear Customer, we were unable to process your recent payment for your 'Enterprise' plan. Your account is scheduled for suspension in 24 hours unless billing details are updated."
+                },
+                {
+                    "subject": "Client Complaint: 4-hour downtime on Tuesday",
+                    "body": "Hi, I am very disappointed with the recent downtime. Our operations were paralyzed for hours. We expect a formal RCA and a credit to our account for this SLA breach."
+                },
+                {
+                    "subject": "SECURITY ALERT: Unauthorized Login Attempt Detected",
+                    "body": "We detected a login attempt to your admin account from an unrecognized IP address (192.168.1.1) in a different country. Please verify if this was you or change your password immediately."
+                },
+                {
+                    "subject": "Feature Request: Export Analytics to PDF",
+                    "body": "Hi team, it would be great if we could export the weekly email stats to a PDF report instead of just CSV. Our management team prefers PDF for their weekly review meetings."
+                }
+            ]
+            for item in TEMPLATES:
+                await prisma.simulationtemplate.create(
+                    data={
+                        "subject": item.get("subject", "No Subject"),
+                        "body": item.get("body", "")
+                    }
+                )
+            templates = await prisma.simulationtemplate.find_many()
+            
         return [
             {
                 "id": str(t.id),
@@ -205,195 +239,4 @@ async def process_and_save_email(
     return db_email
 
 
-# --- Thread-Safe Bridge Helpers for Sync IMAP poller executor thread ---
-
-def check_duplicate_sync(message_id: str) -> bool:
-    """Thread-safe check for email duplicates using async Prisma on the main event loop."""
-    if main_event_loop is None or not prisma.is_connected():
-        logger.warning("Prisma client not connected or event loop missing in check_duplicate_sync")
-        return False
-    coro = prisma.email.find_unique(where={"message_id": message_id})
-    future = asyncio.run_coroutine_threadsafe(coro, main_event_loop)
-    try:
-        return future.result(timeout=10) is not None
-    except Exception as e:
-        logger.error(f"Error checking duplicate in check_duplicate_sync: {e}")
-        return False
-
-
-def process_and_save_email_sync(
-    message_id: str,
-    sender: str,
-    subject: str,
-    body: str,
-    received_at: datetime.datetime
-) -> Optional[Any]:
-    """Thread-safe process and save using async Prisma on the main event loop."""
-    if main_event_loop is None or not prisma.is_connected():
-        logger.warning("Prisma client not connected or event loop missing in process_and_save_email_sync")
-        return None
-    coro = process_and_save_email(
-        message_id=message_id,
-        sender=sender,
-        subject=subject,
-        body=body,
-        received_at=received_at
-    )
-    future = asyncio.run_coroutine_threadsafe(coro, main_event_loop)
-    try:
-        return future.result(timeout=15)
-    except Exception as e:
-        logger.error(f"Error saving email in process_and_save_email_sync: {e}")
-        return None
-
-
-def poll_imap_inbox() -> int:
-    """
-    Connects to the IMAP server and checks for new emails.
-    Limits processing to 5 most recent emails to prevent flooding.
-    """
-    if not settings.EMAIL_USER or not settings.EMAIL_PASS:
-        logger.error("IMAP poller failed: EMAIL_USER and EMAIL_PASS must be configured.")
-        return 0
-
-    processed_count = 0
-    
-    try:
-        logger.info(f"Connecting to IMAP server: {settings.IMAP_SERVER}...")
-        mail = imaplib.IMAP4_SSL(settings.IMAP_SERVER, timeout=15)
-        mail.login(settings.EMAIL_USER, settings.EMAIL_PASS)
-        mail.select("INBOX")
-
-        status, response = mail.search(None, "UNSEEN")
-        if status != "OK":
-            logger.error("IMAP search failed.")
-            return 0
-
-        # LIMIT: Only take the last 5 IDs (most recent) to prevent "continuous" processing flood
-        all_mail_ids = response[0].split()
-        mail_ids = all_mail_ids[-5:] if len(all_mail_ids) > 5 else all_mail_ids
-        
-        if len(all_mail_ids) > 0:
-            logger.info(f"Found {len(all_mail_ids)} unread emails. Processing {len(mail_ids)} most recent.")
-        else:
-            return 0
-
-        for m_id in mail_ids:
-            # First, fetch just the headers to check for duplicate message-id WITHOUT marking as seen
-            status, header_data = mail.fetch(m_id, "(BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)])")
-            if status == "OK" and isinstance(header_data[0], tuple):
-                header_msg = email.message_from_bytes(header_data[0][1])
-                msg_id = header_msg.get("Message-ID")
-                if msg_id:
-                    msg_id = msg_id.strip("<>")
-                    if check_duplicate_sync(msg_id):
-                        # It's a duplicate, mark it as SEEN anyway so we don't fetch it next time, 
-                        # but don't process it.
-                        mail.store(m_id, "+FLAGS", "\\Seen")
-                        continue
-
-            # If not a duplicate or we couldn't tell, fetch the full message (marks as seen)
-            status, msg_data = mail.fetch(m_id, "(RFC822)")
-            if status != "OK":
-                logger.error(f"Failed to fetch mail ID {m_id}")
-                continue
-
-            for response_part in msg_data:
-                if isinstance(response_part, tuple):
-                    msg = email.message_from_bytes(response_part[1])
-                    
-                    msg_id = msg.get("Message-ID")
-                    if not msg_id:
-                        raw_id_seed = f"{msg.get('From', '')}{msg.get('Subject', '')}{msg.get('Date', '')}"
-                        msg_id = f"fallback-{get_stable_hash(raw_id_seed)}"
-                    
-                    msg_id = msg_id.strip("<>")
-
-                    # Final duplicate check just in case
-                    if check_duplicate_sync(msg_id):
-                        continue
-
-                    sender = decode_mime_words(msg.get("From"))
-                    subject = decode_mime_words(msg.get("Subject"))
-                    
-                    date_str = msg.get("Date")
-                    received_at = datetime.datetime.now(datetime.timezone.utc)
-                    if date_str:
-                        try:
-                            received_at = parsedate_to_datetime(date_str)
-                        except Exception: pass
-
-                    body = parse_email_body(msg)
-
-                    logger.info(f"[POLLER] Saving REAL email from {sender}")
-                    result = process_and_save_email_sync(
-                        message_id=msg_id,
-                        sender=sender,
-                        subject=subject,
-                        body=body,
-                        received_at=received_at
-                    )
-                    if result:
-                        processed_count += 1
-                        
-        mail.close()
-        mail.logout()
-    except Exception as e:
-        logger.error(f"IMAP polling error: {e}")
-        
-    return processed_count
-
-
-async def poll_mock_emails() -> int:
-    """
-    Background worker for Mock Mode.
-    ONLY processes manually queued custom emails.
-    """
-    processed_count = 0
-    try:
-        import app.services.email_sender as email_sender
-        # Use a list copy to avoid modification during iteration
-        pending = list(email_sender.pending_mock_emails)
-        email_sender.pending_mock_emails = [] # Clear the original queue immediately
-        
-        for custom_email in pending:
-            logger.info(f"[POLLER] Processing manual simulation: '{custom_email['subject']}'")
-            timestamp = int(time.time())
-            unique_msg_id = f"manual-{timestamp}-{get_stable_hash(custom_email['subject'])}"
-            received_at = datetime.datetime.now(datetime.timezone.utc)
-            
-            result = await process_and_save_email(
-                message_id=unique_msg_id,
-                sender=custom_email["sender"],
-                subject=custom_email["subject"],
-                body=custom_email["body"],
-                received_at=received_at
-            )
-            if result:
-                processed_count += 1
-    except Exception as e:
-        logger.error(f"Mock polling error: {e}")
-    return processed_count
-
-
-async def poller_loop():
-    """
-    Background loop. Now slowed down to 5 minutes to prevent any race conditions.
-    """
-    await asyncio.sleep(10) # Wait for server to settle
-    
-    interval = 300  # 5 minutes
-    logger.info("Background Email Poller starting (Interval: 5 min)...")
-    
-    while True:
-        try:
-            if settings.MOCK_MODE:
-                # In mock mode, we only process manually triggered emails
-                await poll_mock_emails()
-            else:
-                # In real mode, we poll IMAP but with a strict limit
-                await asyncio.get_event_loop().run_in_executor(None, poll_imap_inbox)
-        except Exception as e:
-            logger.error(f"Critical error in poller loop: {e}")
-            
-        await asyncio.sleep(interval)
+# IMAP Polling and Mock polling removed. Emails are now processed locally on send.

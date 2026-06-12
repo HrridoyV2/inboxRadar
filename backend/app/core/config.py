@@ -26,7 +26,6 @@ class Settings(BaseSettings):
     NEXT_PUBLIC_SUPABASE_ANON_KEY: Optional[str] = Field(None, alias="NEXT_PUBLIC_SUPABASE_ANON_KEY")
 
     # Email Receiver (IMAP)
-    MOCK_MODE: bool = Field(True, alias="MOCK_MODE")
     IMAP_SERVER: str = Field("imap.gmail.com", alias="IMAP_SERVER")
     EMAIL_USER: str = Field(..., alias="EMAIL_USER")
     EMAIL_PASS: str = Field(..., alias="EMAIL_PASS")

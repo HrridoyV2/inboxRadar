@@ -139,7 +139,7 @@ export default function Home() {
         const statusRes = await fetch(`${API_URL}/`);
         if (statusRes.ok) {
           const statusData = await statusRes.json();
-          setEngineMode(statusData.mock_mode ? 'SIMULATION' : 'LIVE IMAP');
+          setEngineMode('SUPABASE SYNC');
           
           if (statusData.api_token) {
             currentToken = statusData.api_token;
@@ -214,25 +214,19 @@ export default function Home() {
     }
   };
 
-  // Trigger manual IMAP Scan (Trigger 1)
+  // Trigger manual DB Sync (Trigger 1)
   const triggerScan = async () => {
     setPolling(true);
-    addLog("Scanning inbox...", "info");
-    addToast("Scanning for new emails...", "info");
+    addLog("Syncing with Supabase database...", "info");
+    addToast("Syncing records from database...", "info");
     try {
-      const res = await fetchWithAuth(`${API_URL}/emails/trigger-scan`, { method: 'POST' });
-      if (res.ok) {
-        const data = await res.json();
-        addLog(`Scan complete (${data.mode}). Processed ${data.processed_new_emails} new emails.`, "success");
-        addToast(`Scan complete: ${data.processed_new_emails} new emails.`, "success");
-        fetchData();
-      } else {
-        addLog("Manual inbox scan failed.", "error");
-        addToast("Inbox scan failed.", "error");
-      }
+      // Just fetch the latest records from the database
+      await fetchData();
+      addLog(`Database sync complete.`, "success");
+      addToast(`Sync complete.`, "success");
     } catch (err) {
-      addLog("Network connection error during scan.", "error");
-      addToast("Network error during scan.", "error");
+      addLog("Network connection error during sync.", "error");
+      addToast("Network error during sync.", "error");
     } finally {
       setPolling(false);
     }

@@ -11,7 +11,7 @@ from app.schemas.email import (
     EmailResponse, EmailSimulate, EmailSendTest, EmailStats
 )
 from app.services.email_poller import (
-    process_and_save_email, poll_imap_inbox, poll_mock_emails, get_simulation_templates
+    process_and_save_email, get_simulation_templates
 )
 from app.services.email_sender import send_email_to_self
 from app.core.config import settings
@@ -62,26 +62,18 @@ async def simulate_email(
     _token: dict = Depends(verify_jwt_token)
 ):
     """
-    Simulates receiving a mock email scenario.
-    In Mock Mode, it processes and saves the email directly.
-    In Real Mode, it dispatches it via SMTP so it goes through the real IMAP poller.
+    Simulates an email scenario by sending it via SMTP and immediately processing it into the DB.
     """
     try:
-        # Use the fixed sender from environment for simulations, with a descriptive label
         sender = f"Simulation Ingest <{settings.EMAIL_USER}>"
 
-        if not settings.MOCK_MODE:
-            # Send a real SMTP/Cloud email containing the template data
-            success, detail_msg = send_email_to_self(payload.subject, payload.body)
-            if not success:
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"Email Delivery Failed: {detail_msg}"
-                )
-            return {
-                "status": "sent_via_cloud",
-                "message": detail_msg
-            }
+        # Send a real SMTP/Cloud email containing the template data
+        success, detail_msg = send_email_to_self(payload.subject, payload.body)
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Email Delivery Failed: {detail_msg}"
+            )
 
         timestamp = int(time.time())
         rand_id = random.randint(1000, 9999)
@@ -97,10 +89,9 @@ async def simulate_email(
         )
 
         if not email_record:
-            # This happens if duplicate (unlikely here) or DB error
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to process and save simulated email. The database might be offline or the message ID is a duplicate."
+                detail="Failed to process and save simulated email. The database might be offline."
             )
 
         return email_record
@@ -121,8 +112,7 @@ async def send_test_email(
     _token: dict = Depends(verify_jwt_token)
 ):
     """
-    Sends a test email to the connected email user inbox.
-    When the poller runs, it will discover and classify this email.
+    Sends a test email to the connected email user inbox and immediately processes it.
     """
     success, detail_msg = send_email_to_self(payload.subject, payload.body)
     if not success:
@@ -131,13 +121,19 @@ async def send_test_email(
             detail=detail_msg
         )
         
-    # If in Mock Mode, trigger mock polling immediately so that custom emails are processed instantly
-    if settings.MOCK_MODE:
-        try:
-            await poll_mock_emails()
-        except Exception as e:
-            import logging
-            logging.getLogger(__name__).error(f"Error triggering immediate mock poll in send-test: {e}")
+    timestamp = int(time.time())
+    rand_id = random.randint(1000, 9999)
+    unique_msg_id = f"test-{timestamp}-{rand_id}"
+    received_at = datetime.datetime.now(datetime.timezone.utc)
+    
+    sender = f"Sandbox Test <{settings.SMTP_SENDER_EMAIL}>"
+    await process_and_save_email(
+        message_id=unique_msg_id,
+        sender=sender,
+        subject=payload.subject,
+        body=payload.body,
+        received_at=received_at
+    )
             
     return {"status": "success", "message": detail_msg}
 
@@ -145,19 +141,12 @@ async def send_test_email(
 @router.post("/trigger-scan")
 async def trigger_scan(_token: dict = Depends(verify_jwt_token)):
     """
-    Actively polls the cloud IMAP or mock queue for new emails.
+    Dummy endpoint since IMAP polling is disabled. Returns success.
     """
-    if settings.MOCK_MODE:
-        new_count = await poll_mock_emails()
-        mode = "MOCK_SYNC"
-    else:
-        new_count = await asyncio.get_event_loop().run_in_executor(None, poll_imap_inbox)
-        mode = "IMAP_SYNC"
-        
     return {
         "status": "success",
-        "mode": mode,
-        "processed_new_emails": new_count
+        "mode": "LOCAL_SYNC",
+        "processed_new_emails": 0
     }
 
 

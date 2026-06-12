@@ -9,8 +9,7 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-# In-memory queue for custom mock emails
-pending_mock_emails = []
+# Queue removed
 
 def send_email_via_resend(subject: str, body: str) -> tuple[bool, str]:
     """Sends email using the Resend HTTP API (Port 443, never blocked)."""
@@ -47,17 +46,7 @@ def send_email_to_self(subject: str, body: str) -> tuple[bool, str]:
     Main entry point for sending emails.
     Returns (success, message).
     """
-    # 1. MOCK MODE
-    if settings.MOCK_MODE:
-        logger.info(f"[MOCK] Queueing simulation: {subject}")
-        pending_mock_emails.append({
-            "sender": f"Simulator <{settings.SMTP_SENDER_EMAIL}>",
-            "subject": subject,
-            "body": body
-        })
-        return True, "MOCK MODE: Email simulated locally (not sent to real inbox)."
-
-    # 2. CLOUD HTTP API (Bypass Render Firewall)
+    # 1. CLOUD HTTP API (Bypass Render Firewall)
     # Check if key exists and is not just a placeholder
     if settings.RESEND_API_KEY and len(settings.RESEND_API_KEY) > 10:
         success, msg = send_email_via_resend(subject, body)

@@ -11,7 +11,6 @@ from app.core.config import settings
 from app.db.prisma_client import prisma
 from app.api.router import api_router
 from app.api.endpoints import websocket
-from app.services.email_poller import poller_loop
 
 # Configure logging
 logging.basicConfig(
@@ -39,27 +38,39 @@ async def lifespan(app: FastAPI):
         try:
             template_count = await prisma.simulationtemplate.count()
             if template_count == 0:
-                logger.info("Simulation templates table is empty. Attempting to seed from mock_emails.json...")
-                import json
-                from pathlib import Path
+                logger.info("Simulation templates table is empty. Attempting to seed from code...")
                 
-                # In Docker, WORKDIR is /app, and mock_emails.json was copied there
-                mock_file = Path("mock_emails.json")
+                TEMPLATES = [
+                    {
+                        "subject": "CRITICAL: Database Cluster 'db-prod-01' is UNREACHABLE",
+                        "body": "Monitoring Alert: The production database cluster 'db-prod-01' has stopped responding to health checks. Connection pool is exhausted and latency is > 5000ms. Immediate investigation required."
+                    },
+                    {
+                        "subject": "Urgent: Payment Declined for Subscription #INV-8821",
+                        "body": "Dear Customer, we were unable to process your recent payment for your 'Enterprise' plan. Your account is scheduled for suspension in 24 hours unless billing details are updated."
+                    },
+                    {
+                        "subject": "Client Complaint: 4-hour downtime on Tuesday",
+                        "body": "Hi, I am very disappointed with the recent downtime. Our operations were paralyzed for hours. We expect a formal RCA and a credit to our account for this SLA breach."
+                    },
+                    {
+                        "subject": "SECURITY ALERT: Unauthorized Login Attempt Detected",
+                        "body": "We detected a login attempt to your admin account from an unrecognized IP address (192.168.1.1) in a different country. Please verify if this was you or change your password immediately."
+                    },
+                    {
+                        "subject": "Feature Request: Export Analytics to PDF",
+                        "body": "Hi team, it would be great if we could export the weekly email stats to a PDF report instead of just CSV. Our management team prefers PDF for their weekly review meetings."
+                    }
+                ]
                 
-                if mock_file.exists():
-                    with open(mock_file, "r", encoding="utf-8") as f:
-                        data = json.load(f)
-                    
-                    for item in data:
-                        await prisma.simulationtemplate.create(
-                            data={
-                                "subject": item.get("subject", "No Subject"),
-                                "body": item.get("body", "")
-                            }
-                        )
-                    logger.info(f"Successfully seeded {len(data)} templates to Supabase.")
-                else:
-                    logger.warning(f"mock_emails.json not found at {mock_file.absolute()}. Skipping seeding.")
+                for item in TEMPLATES:
+                    await prisma.simulationtemplate.create(
+                        data={
+                            "subject": item.get("subject", "No Subject"),
+                            "body": item.get("body", "")
+                        }
+                    )
+                logger.info(f"Successfully seeded {len(TEMPLATES)} templates to Supabase.")
         except Exception as seed_err:
             logger.error(f"Failed to seed templates during startup: {seed_err}")
 
@@ -75,9 +86,7 @@ async def lifespan(app: FastAPI):
     logger.info(f"{token}")
     logger.info("==================================================================")
     
-    # Start poller worker in the background
-    logger.info("Launching background IMAP/Mock poller service...")
-    poller_task = asyncio.create_task(poller_loop())
+    # Background poller loop removed in favor of live SMTP processing
     
     yield
     
@@ -90,14 +99,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Error during Prisma client disconnection: {e}")
         
-    logger.info("Stopping email poller worker...")
-    poller_task.cancel()
-    try:
-        await poller_task
-    except asyncio.CancelledError:
-        logger.info("Background poller service stopped successfully.")
-    except Exception as e:
-        logger.error(f"Error during poller service shutdown: {e}")
+    # No poller task to stop
         
     logger.info("Server shutdown finalized.")
 
@@ -168,7 +170,6 @@ async def read_root():
         "app": "InboxRadar2 AI Email Reading Agent API",
         "version": "1.0.1",
         "environment": settings.APP_ENV,
-        "mock_mode": settings.MOCK_MODE,
         "api_token": token,
         "database_connected": prisma.is_connected(),
         "database_record_count": email_count

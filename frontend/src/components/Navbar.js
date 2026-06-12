@@ -58,7 +58,7 @@ export default function Navbar({
           style={{ fontSize: '0.725rem', padding: '0.45rem 0.875rem' }}
         >
           <RefreshCw className={polling ? 'animate-spin' : ''} style={{ width: '0.8rem', height: '0.8rem' }} />
-          Scan Inbox
+          Sync Database
         </button>
       </div>
 
