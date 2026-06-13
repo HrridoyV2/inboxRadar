@@ -6,6 +6,7 @@ Welcome to the InboxRadar AI! This guide is designed to help any user navigate a
 > **🌟 Live Project Links:**
 > - **Frontend Dashboard**: [https://inboxradar.mutho.tech](https://inboxradar.mutho.tech)
 > - **Backend API**: [https://api.inboxradar.mutho.tech](https://api.inboxradar.mutho.tech)
+> - **📽️ Loom Video Walkthrough**: [Watch Here](https://www.loom.com/share/b8af9cf0596645cfacfbfdea5fee03dd)
 
 ## 1. Top Navigation Bar (Status & Alerts)
 

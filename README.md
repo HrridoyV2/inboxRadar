@@ -6,8 +6,9 @@ Welcome to **InboxRadar AI**, an autonomous email categorization assistant and r
 > **🌟 Live Demo Links:**
 > - **Frontend Dashboard**: [https://inboxradar.mutho.tech](https://inboxradar.mutho.tech)
 > - **Backend API**: [https://api.inboxradar.mutho.tech](https://api.inboxradar.mutho.tech)
+> - **📽️ Loom Video Walkthrough**: [Watch Here](https://www.loom.com/share/b8af9cf0596645cfacfbfdea5fee03dd)
 
-InboxRadar monitors your connected inbox (or simulates it using structured mock scenarios), analyzes the content of incoming emails using **Gemini AI**, decides if they are critical, and instantly pushes warnings to a desktop dashboard using WebSockets and browser notifications.
+InboxRadar monitors your connected inbox (or simulates it using structured mock scenarios), analyzes the content of incoming emails using **Google Gemini**, decides if they are critical, and instantly pushes warnings to a desktop dashboard using WebSockets and browser notifications.
 
 ---
 
@@ -16,7 +17,7 @@ InboxRadar monitors your connected inbox (or simulates it using structured mock 
 - **Backend**: FastAPI (Python) — Fast, asynchronous, and well-structured API.
 - **Frontend**: Next.js (React) — A modern dark-mode dashboard styled with a custom glassmorphism design system.
 - **Database**: Supabase (PostgreSQL) — For storing processed email metadata and ensuring duplicate prevention.
-- **AI Engine**: Gemini 1.5 Flash API — High-speed cognitive analysis with a robust keyword-based regex classifier fallback.
+- **AI Engine**: Google Gemini (Flash Latest) — High-speed cognitive analysis with strict JSON output parsing for highly accurate classification.
 - **Real-Time Interface**: WebSockets (native) + HTML5 Browser Notifications API.
 
 ---
@@ -69,31 +70,22 @@ Open [http://localhost:3000](http://localhost:3000) in your web browser.
 
 The heart of the system is the classifier in `backend/app/services/ai.py`.
 
-1. **Gemini Ingestion**: If `GEMINI_API_KEY` is present in your `.env` file, the backend sends the email body to `gemini-1.5-flash` with a strict JSON format prompt.
-2. **Rule-Based Fallback**: If the Gemini API key is missing or fails (due to rate limits or network hiccups), the backend seamlessly falls back to a regex-based keyword scanner. This scans for:
-   - **Infrastructure keywords** (`down`, `offline`, `unreachable`) &rarr; Category: `SERVER_DOWN`, Priority: `HIGH`.
-   - **Billing issues** (`payment failed`, `unpaid`, `insufficient funds`) &rarr; Category: `PAYMENT_ISSUE`, Priority: `HIGH`.
-   - **Code/website errors** (`checkout broken`, `bug`, `blocker`) &rarr; Category: `URGENT_BUG`, Priority: `HIGH`.
-   - **Transactional receipts** (e.g., standard GitHub invoices paid) &rarr; Category: `BILLING`, Priority: `LOW`, Important: `False`.
-   - **General newsletters/Spam** &rarr; Category: `NEWSLETTER` / `SPAM`, Priority: `LOW`, Important: `False`.
+1. **Gemini Ingestion**: If `GEMINI_API_KEY` is present in your `.env` file, the backend sends the email body to `gemini-flash-latest` (or newer models depending on your API key) with a strict JSON format prompt.
+2. **Strict Error Handling**: If the Gemini API key is missing or fails (due to rate limits or network hiccups), the backend halts processing immediately and bubbles the error up to the UI so you are instantly informed of the problem.
 
-This hybrid approach guarantees that the system is **highly available** and works out of the box without any setup keys!
+*(Note: There is also a dormant legacy Rules-Based Fallback Engine built-in for local offline development, which relies on regex matching for keywords like "server down", "payment failed", and "urgent bug".)*
 
 ---
 
-## 🎛️ The 3 Ingestion Triggers
+## 🎛️ The 2 Ingestion Triggers
 
-InboxRadar provides three ways to test and trigger the classification engine:
+InboxRadar provides two primary ways to test and trigger the classification engine:
 
-1. **Real Inbox Polling (Trigger 1)**:
-   The background poller worker connects to your IMAP server (e.g., Gmail) every 2 minutes. It checks for new emails, extracts headers, and processes them.
-   - *Duplicate Prevention*: The poller hashes/looks up the email's `Message-ID` in the Supabase PostgreSQL database before running it. A message is **never** processed or displayed twice.
+1. **Send Email to Self (Trigger 1)**:
+   In the control center on the dashboard, type a Subject and Body and hit "Send Custom Email". The backend will process the payload, classify it using the AI, and you will see it pop up in your feed just like a real email.
 
-2. **Send Email to Self (Trigger 2)**:
-   In the control center on the dashboard, type a Subject and Body and hit "Send SMTP Mail". The backend will send a real email using SMTP TLS to your own connected address. The background poller will automatically grab it on the next sweep (or you can force a scan).
-
-3. **Scenario Simulator (Trigger 3)**:
-   Select any mock scenario (e.g., Database Crash, Phishing Spam, Stripe Payment Decline) from the dropdown and click "Simulate Ingestion". The email payload is sent directly to the classifier and database, generating a unique ID so you see the push notification pop up on the dashboard instantly!
+2. **Scenario Simulator (Trigger 2)**:
+   Select any mock scenario (e.g., Database Crash, Phishing Spam, Stripe Payment Decline) from the dropdown and click "Trigger Simulation". The email payload is sent directly to the classifier and database, generating a unique ID so you see the push notification pop up on the dashboard instantly!
 
 ---
 
