@@ -2,6 +2,11 @@
 
 Welcome to **InboxRadar AI**, an autonomous email categorization assistant and real-time dashboard designed for operations and engineering teams. 
 
+> [!TIP]
+> **🌟 Live Demo Links:**
+> - **Frontend Dashboard**: [https://inboxradar.mutho.tech](https://inboxradar.mutho.tech)
+> - **Backend API**: [https://api.inboxradar.mutho.tech](https://api.inboxradar.mutho.tech)
+
 InboxRadar monitors your connected inbox (or simulates it using structured mock scenarios), analyzes the content of incoming emails using **Gemini AI**, decides if they are critical, and instantly pushes warnings to a desktop dashboard using WebSockets and browser notifications.
 
 ---

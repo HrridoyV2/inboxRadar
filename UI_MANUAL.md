@@ -2,6 +2,11 @@
 
 Welcome to the InboxRadar AI! This guide is designed to help any user navigate and interact with the user interface effectively. The UI is built to be intuitive, allowing you to monitor your categorized emails in real-time and test the system through simulated events.
 
+> [!TIP]
+> **🌟 Live Project Links:**
+> - **Frontend Dashboard**: [https://inboxradar.mutho.tech](https://inboxradar.mutho.tech)
+> - **Backend API**: [https://api.inboxradar.mutho.tech](https://api.inboxradar.mutho.tech)
+
 ## 1. Top Navigation Bar (Status & Alerts)
 
 At the very top of the interface, you'll find essential status indicators and quick-action buttons:
