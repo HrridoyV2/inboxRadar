@@ -48,7 +48,7 @@ def rules_based_classify(sender: str, subject: str, body: str) -> Dict[str, Any]
         reason = "Detected strong negative sentiment, SLA complaint, or request to terminate services from a customer."
 
     # 3. Payment Failure / Billing Alert
-    elif any(k in subject_lower or k in body_lower for k in ["payment failed", "billing issue", "failed transaction", "insufficient funds", "charge failed", "invoice unpaid", "stripe"]):
+    elif any(k in subject_lower or k in body_lower for k in ["payment failed", "billing issue", "failed transaction", "insufficient funds", "charge failed", "invoice unpaid", "stripe", "payment declined", "unable to process", "suspension", "billing details"]):
         # Verify it's actually a failure, not a success receipt
         if any(k in subject_lower or k in body_lower for k in ["success", "receipt", "paid", "thank you for your payment"]) and not any(f in body_lower for f in ["fail", "decline", "error"]):
             important = False
@@ -100,11 +100,10 @@ def rules_based_classify(sender: str, subject: str, body: str) -> Dict[str, Any]
 def classify_email(sender: str, subject: str, body: str) -> Dict[str, Any]:
     """
     Classifies an email using Gemini API.
-    If the API call fails or key is missing, falls back to the rules-based classifier.
+    Raises an exception if the API call fails or key is missing.
     """
     if not settings.GEMINI_API_KEY:
-        logger.info("Using rules-based classifier (no Gemini API key).")
-        return rules_based_classify(sender, subject, body)
+        raise ValueError("Gemini API key is missing. Please configure GEMINI_API_KEY to process emails.")
 
     prompt = f"""
 You are an expert AI email classification assistant. Analyze the incoming email below and determine its importance, priority level, category, and justification.
@@ -141,14 +140,20 @@ Return your answer strictly as a JSON object with this format, using double quot
 """
 
     try:
-        # Use gemini-1.5-flash for speed and efficiency
-        model = genai.GenerativeModel("gemini-1.5-flash")
-        response = model.generate_content(
-            prompt,
-            generation_config={"response_mime_type": "application/json"}
-        )
+        # Use gemini-pro (Gemini 1.0) which is universally available across all regions and keys
+        model = genai.GenerativeModel("gemini-pro")
+        response = model.generate_content(prompt)
         
-        data = json.loads(response.text.strip())
+        # Clean potential markdown formatting from Gemini 1.0 Pro output
+        text = response.text.strip()
+        if text.startswith("```json"):
+            text = text[7:]
+        if text.startswith("```"):
+            text = text[3:]
+        if text.endswith("```"):
+            text = text[:-3]
+            
+        data = json.loads(text.strip())
         
         # Verify response keys exist and values are valid
         if "important" in data and "priority" in data and "category" in data and "reason" in data:
@@ -164,9 +169,8 @@ Return your answer strictly as a JSON object with this format, using double quot
                 
             return data
         else:
-            logger.warning(f"Gemini returned missing keys: {response.text}. Using fallback rules.")
-            return rules_based_classify(sender, subject, body)
+            raise ValueError(f"Gemini returned missing keys: {response.text}")
             
     except Exception as e:
-        logger.error(f"Gemini classification failed: {e}. Falling back to rules-based classifier.")
-        return rules_based_classify(sender, subject, body)
+        logger.error(f"Gemini classification failed: {e}")
+        raise ValueError(f"Gemini AI classification failed: {str(e)}")

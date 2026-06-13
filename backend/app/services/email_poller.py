@@ -156,12 +156,14 @@ async def process_and_save_email(
         logger.error(f"Database error checking duplicate for {message_id}: {e}")
         return None
 
-    # 2. Classify with AI (Gemini or Fallback)
+    # 2. Classify with AI (Gemini only)
     try:
         classification = classify_email(sender, subject, body)
     except Exception as e:
         logger.error(f"Classification failure for {subject}: {e}")
-        classification = {"important": False, "priority": "LOW", "category": "OTHER", "reason": "System error during classification."}
+        # Stop processing and bubble up the error to the API route to display in a toast
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail=str(e))
     
     # 3. Create database record
     try:
