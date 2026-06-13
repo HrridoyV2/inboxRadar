@@ -22,6 +22,29 @@ export default function SandboxControls({
         </h2>
       </div>
 
+      <div style={{
+        position: 'sticky',
+        top: 0,
+        zIndex: 50,
+        background: 'linear-gradient(90deg, rgba(30, 27, 75, 0.95) 0%, rgba(49, 46, 129, 0.95) 100%)',
+        backdropFilter: 'blur(8px)',
+        padding: '0.75rem',
+        margin: '0 -1.5rem 1.5rem -1.5rem',
+        borderBottom: '1px solid rgba(99, 102, 241, 0.4)',
+        color: '#e0e7ff',
+        fontSize: '0.8rem',
+        fontWeight: 'bold',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)'
+      }}>
+        <span style={{ marginRight: '0.5rem', color: '#818cf8' }}>Receiving Email:</span>
+        <span suppressHydrationWarning style={{ color: '#fff', background: '#4f46e5', padding: '0.25rem 0.6rem', borderRadius: '4px', letterSpacing: '0.5px', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>
+          {emailUser || 'alex142nomad@gmail.com'}
+        </span>
+      </div>
+
       {/* Trigger 3: Simulation */}
       <div className="control-section">
         <h3 className="control-section-header">
@@ -102,12 +125,9 @@ export default function SandboxControls({
           <Send style={{ width: '0.875rem', height: '0.875rem', color: '#6366f1' }} />
           SMTP Send Test (Trigger 2)
         </h3>
-        <p style={{ fontSize: '0.725rem', color: '#64748b', margin: '0.25rem 0' }}>
+        <p style={{ fontSize: '0.725rem', color: '#64748b', margin: '0.25rem 0', marginBottom: '1rem' }}>
           Simulates sending a custom email to self. Processed instantly.
         </p>
-        <div style={{ fontSize: '0.7rem', color: '#818cf8', fontWeight: '600', marginBottom: '0.5rem' }}>
-          Target: {emailUser || 'Not Configured'}
-        </div>
 
         <div className="form-group">
           <label className="form-label">Subject</label>

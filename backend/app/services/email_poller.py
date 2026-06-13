@@ -35,7 +35,7 @@ async def get_simulation_templates() -> List[Dict[str, Any]]:
             await prisma.connect()
 
         # Use raw query to bypass any schema mismatch between local prisma client and live DB
-        templates = await prisma.query_raw("SELECT * FROM simulation_templates ORDER BY created_at DESC LIMIT 50;")
+        templates = await prisma.query_raw("SELECT * FROM simulation_templates ORDER BY created_at DESC;")
         
         result = []
         for t in templates:

@@ -21,7 +21,7 @@ export default function Navbar({
           <div className="brand-glow-dot"></div>
         </div>
         <div>
-          <h1 className="brand-title">InboxRadar<span className="text-gradient ml-1">AI:Hridoy</span></h1>
+          <h1 className="brand-title">InboxRadar<span className="text-gradient ml-1">AI</span></h1>
           <p className="brand-subtitle">Autonomous Email Reading & Classification Agent</p>
         </div>
       </div>

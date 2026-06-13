@@ -183,8 +183,15 @@ export default function Home() {
     }
   };
 
-  // Request browser notifications permission
+  // Toggle browser notifications permission
   const requestNotificationPermission = async () => {
+    if (notificationsEnabled) {
+      setNotificationsEnabled(false);
+      addLog("Desktop push notifications disabled.", "info");
+      addToast("Notifications disabled.", "info");
+      return;
+    }
+
     if (!("Notification" in window)) {
       addLog("Notifications not supported in this browser.", "warning");
       return;
@@ -317,6 +324,12 @@ export default function Home() {
     }
   };
 
+  const triggerScanRef = useRef(triggerScan);
+  
+  useEffect(() => {
+    triggerScanRef.current = triggerScan;
+  });
+
   useEffect(() => {
     fetchData();
     addLog("System initialized. Awaiting ingestion events...", "info");
@@ -324,6 +337,13 @@ export default function Home() {
     if ("Notification" in window) {
       setNotificationsEnabled(Notification.permission === "granted");
     }
+
+    // Call the trigger-scan API every 2 minutes
+    const interval = setInterval(() => {
+      triggerScanRef.current();
+    }, 120000);
+
+    return () => clearInterval(interval);
   }, []);
 
   // Dedicated WebSocket Effect - Reconnects when token changes
@@ -530,7 +550,7 @@ export default function Home() {
             smtpBody={smtpBody}
             setSmtpBody={setSmtpBody}
             onSendTestSmtp={sendTestSmtp}
-            emailUser={process.env.NEXT_PUBLIC_EMAIL_USER}
+            emailUser={process.env.EMAIL_USER}
           />
         </section>
       </div>
