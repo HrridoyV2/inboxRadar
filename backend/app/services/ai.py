@@ -140,20 +140,14 @@ Return your answer strictly as a JSON object with this format, using double quot
 """
 
     try:
-        # Use gemini-pro (Gemini 1.0) which is universally available across all regions and keys
-        model = genai.GenerativeModel("gemini-pro")
-        response = model.generate_content(prompt)
+        # Use gemini-flash-latest since 1.x models have been deprecated on this API key
+        model = genai.GenerativeModel("gemini-flash-latest")
+        response = model.generate_content(
+            prompt,
+            generation_config={"response_mime_type": "application/json"}
+        )
         
-        # Clean potential markdown formatting from Gemini 1.0 Pro output
-        text = response.text.strip()
-        if text.startswith("```json"):
-            text = text[7:]
-        if text.startswith("```"):
-            text = text[3:]
-        if text.endswith("```"):
-            text = text[:-3]
-            
-        data = json.loads(text.strip())
+        data = json.loads(response.text.strip())
         
         # Verify response keys exist and values are valid
         if "important" in data and "priority" in data and "category" in data and "reason" in data:
